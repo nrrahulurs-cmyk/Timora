@@ -243,7 +243,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* ── Chart 1: Room Utilisation & Occupied vs Available Eligible Room-Slots ── */}
-      <Card className="p-4 bg-white border-slate-200 shadow-2xs space-y-4">
+      <Card className="p-5 bg-white border border-slate-200/80 shadow-xs rounded-3xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
           <div>
             <CardTitle className="text-sm font-semibold text-slate-900 flex items-center gap-2">
@@ -285,7 +285,7 @@ export default function AnalyticsPage() {
       {/* ── Row: Faculty Workload & Conflicts Breakdown ──────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Faculty Workload Distribution */}
-        <Card className="p-4 bg-white border-slate-200 shadow-2xs space-y-4">
+        <Card className="p-5 bg-white border border-slate-200/80 shadow-xs rounded-3xl space-y-4">
           <div className="border-b border-slate-100 pb-3">
             <CardTitle className="text-sm font-semibold text-slate-900 flex items-center gap-2">
               <Users className="h-4 w-4 text-[rgb(var(--color-primary))]" />
@@ -327,7 +327,7 @@ export default function AnalyticsPage() {
         </Card>
 
         {/* Conflicts by Category and Status */}
-        <Card className="p-4 bg-white border-slate-200 shadow-2xs space-y-4">
+        <Card className="p-5 bg-white border border-slate-200/80 shadow-xs rounded-3xl space-y-4">
           <div className="border-b border-slate-100 pb-3">
             <CardTitle className="text-sm font-semibold text-slate-900 flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-amber-600" />
@@ -366,7 +366,7 @@ export default function AnalyticsPage() {
       {/* ── Row: Syllabus Completion & Pending Scheduling Requests ───────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Syllabus Completion Against Targets */}
-        <Card className="p-4 bg-white border-slate-200 shadow-2xs space-y-4">
+        <Card className="p-5 bg-white border border-slate-200/80 shadow-xs rounded-3xl space-y-4">
           <div className="border-b border-slate-100 pb-3">
             <CardTitle className="text-sm font-semibold text-slate-900 flex items-center gap-2">
               <BookOpen className="h-4 w-4 text-[rgb(var(--color-primary))]" />
@@ -394,7 +394,7 @@ export default function AnalyticsPage() {
         </Card>
 
         {/* Pending Scheduling Requests Pipeline */}
-        <Card className="p-4 bg-white border-slate-200 shadow-2xs space-y-4">
+        <Card className="p-5 bg-white border border-slate-200/80 shadow-xs rounded-3xl space-y-4">
           <div className="border-b border-slate-100 pb-3">
             <CardTitle className="text-sm font-semibold text-slate-900 flex items-center gap-2">
               <Clock className="h-4 w-4 text-[rgb(var(--color-primary))]" />
@@ -422,7 +422,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* ── Detailed Institutional Facility Benchmark Table ─────────────────── */}
-      <Card className="bg-white border-slate-200 shadow-2xs overflow-hidden">
+      <Card className="bg-white border border-slate-200/80 shadow-xs rounded-3xl overflow-hidden">
         <CardHeader className="p-4 border-b border-slate-100 bg-slate-50/50">
           <CardTitle className="text-sm font-semibold text-slate-900">
             Classroom & Facility Utilization Benchmarks

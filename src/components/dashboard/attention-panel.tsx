@@ -42,14 +42,14 @@ export function AttentionPanel({
   const criticalCount = sortedItems.filter((i) => i.severity === "critical").length;
 
   return (
-    <Card className="flex flex-col justify-between bg-white border border-slate-200/80 shadow-xs rounded-xl overflow-hidden">
-      {/* ── CIIRC-Style Card Header ── */}
-      <div className="flex items-center justify-between px-4 pt-3.5 pb-2.5 border-b border-slate-100/70 h-[42px] bg-slate-50/40">
+    <Card className="flex flex-col justify-between bg-white border border-slate-200/80 shadow-xs rounded-3xl overflow-hidden">
+      {/* ── Stitch-Style Card Header ── */}
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/50">
         <div className="flex items-center gap-2">
           <h2 className="text-[14px] font-semibold text-slate-900 tracking-[-0.01em]">
             Requires Attention
           </h2>
-          <span className="bg-[#ef4444] text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full">
+          <span className="bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-2xs">
             {sortedItems.length}
           </span>
         </div>
@@ -58,7 +58,7 @@ export function AttentionPanel({
         </span>
       </div>
 
-      <CardContent className="p-2.5 space-y-2 flex-1">
+      <CardContent className="p-3.5 space-y-2.5 flex-1">
         {sortedItems.length === 0 ? (
           <div className="p-8 text-center text-xs text-slate-400 flex flex-col items-center">
             <CheckCircle2 className="h-8 w-8 text-emerald-500 mb-2 opacity-80" />
@@ -70,27 +70,26 @@ export function AttentionPanel({
         ) : (
           displayedItems.map((item) => {
             const isCritical = item.severity === "critical";
-            const isClash = item.type === "clash";
 
             return (
               <div
                 key={item.id}
                 onClick={() => onSelectItem(item)}
-                className={`group p-2.5 rounded-lg border transition-all cursor-pointer space-y-1.5 ${
+                className={`group p-3 rounded-2xl border transition-all cursor-pointer space-y-1.5 ${
                   isCritical
-                    ? "border-rose-200/70 bg-rose-50/20 hover:border-rose-300 hover:bg-rose-50/40"
-                    : "border-slate-200/70 bg-white hover:border-blue-300 hover:bg-slate-50/70"
+                    ? "border-rose-200/80 bg-rose-50/30 hover:border-rose-300 hover:bg-rose-50/60 shadow-2xs"
+                    : "border-slate-200/80 bg-slate-50/30 hover:border-blue-300 hover:bg-white shadow-2xs"
                 }`}
               >
                 {/* Row Header: Severity Dot + Title + Action Pill */}
                 <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-1.5 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
                     <span
                       className={`w-2 h-2 rounded-full shrink-0 ${
                         isCritical ? "bg-rose-500" : "bg-amber-500"
                       }`}
                     />
-                    <span className="font-semibold text-xs text-slate-900 truncate group-hover:text-[#0066cc] transition-colors">
+                    <span className="font-semibold text-xs text-slate-900 truncate group-hover:text-[rgb(var(--color-primary))] transition-colors">
                       {item.title}
                     </span>
                   </div>
@@ -98,14 +97,14 @@ export function AttentionPanel({
                   <Badge
                     variant={isCritical ? "error" : "warning"}
                     size="sm"
-                    className="text-[9.5px] shrink-0 font-medium tracking-wider uppercase py-0 px-1.5"
+                    className="text-[9.5px] shrink-0 font-medium tracking-wider uppercase py-0.5 px-2 rounded-full"
                   >
                     {item.severity}
                   </Badge>
                 </div>
 
                 {/* Resource & Time Context */}
-                <div className="flex items-center gap-3 text-[10.5px] text-slate-500 pl-3.5 font-mono">
+                <div className="flex items-center gap-3 text-[10.5px] text-slate-500 pl-4 font-mono">
                   {item.location && (
                     <span className="flex items-center gap-1 truncate text-slate-700 font-semibold">
                       <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
@@ -119,13 +118,13 @@ export function AttentionPanel({
                 </div>
 
                 {/* One-Line Concise Description */}
-                <p className="text-[11px] text-slate-600 line-clamp-1 leading-snug pl-3.5">
+                <p className="text-[11px] text-slate-600 line-clamp-1 leading-snug pl-4">
                   {item.description}
                 </p>
 
                 {/* Footer Action Link */}
-                <div className="flex items-center justify-end text-[10.5px] pt-1 pl-3.5">
-                  <span className="text-[#0066cc] font-semibold flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
+                <div className="flex items-center justify-end text-[10.5px] pt-1 pl-4">
+                  <span className="text-[rgb(var(--color-primary))] font-semibold flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
                     {item.actionLabel}
                     <ChevronRight className="h-3 w-3" />
                   </span>
@@ -139,7 +138,7 @@ export function AttentionPanel({
           <button
             type="button"
             onClick={() => setExpanded(!expanded)}
-            className="w-full text-center py-1 text-[11px] font-medium text-slate-500 hover:text-slate-800 transition-colors"
+            className="w-full text-center py-1 text-[11px] font-medium text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
           >
             {expanded
               ? "▲ Show Fewer Items"
@@ -148,12 +147,12 @@ export function AttentionPanel({
         )}
       </CardContent>
 
-      <div className="p-2 border-t border-slate-100 bg-slate-50/50">
+      <div className="p-3 border-t border-slate-100 bg-slate-50/50">
         <Button
           variant="outline"
           size="sm"
           onClick={onViewAll}
-          className="w-full text-xs justify-center gap-1.5 border-slate-200 text-slate-700 hover:bg-white h-8"
+          className="w-full text-xs justify-center gap-1.5 border-slate-200 text-slate-700 hover:bg-white h-8 rounded-full shadow-2xs"
         >
           <span>Complete Resolution Queue ({sortedItems.length})</span>
           <ArrowRight className="h-3.5 w-3.5 text-slate-500" />

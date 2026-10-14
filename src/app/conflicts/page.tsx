@@ -151,80 +151,80 @@ export default function ConflictsPage() {
         }
       />
 
-      {/* KPI Metric Summary Row (CIIRC-Style) */}
+      {/* KPI Metric Summary Row (Stitch-Style) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <Card className="p-4 flex flex-col justify-between bg-white border-slate-200/80 shadow-xs rounded-xl min-h-[112px]">
+        <Card className="p-4 flex flex-col justify-between bg-white border border-slate-200/80 shadow-2xs hover:shadow-card-soft rounded-2xl min-h-[116px] transition-all duration-200">
           <div className="flex items-start justify-between">
-            <span className="text-[27px] leading-none font-bold text-slate-900 tracking-[-0.025em] font-mono">
+            <span className="text-[26px] leading-none font-bold text-slate-900 tracking-tight font-sans">
               {conflicts.length}
             </span>
-            <div className="w-6 h-6 rounded-md border border-rose-200/80 bg-rose-50/60 flex items-center justify-center text-rose-600 shrink-0">
+            <div className="w-7 h-7 rounded-full border border-rose-200/80 bg-rose-50 flex items-center justify-center text-rose-600 shrink-0">
               <AlertTriangle className="h-3.5 w-3.5" />
             </div>
           </div>
           <div className="mt-2.5">
-            <div className="text-[12px] font-medium text-slate-600 tracking-[-0.005em]">
+            <div className="text-xs font-semibold text-slate-600 tracking-tight">
               Active Conflicts
             </div>
-            <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-rose-50 text-rose-700 text-[11px] font-semibold mt-1 border border-rose-200/60">
+            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 text-[10.5px] font-semibold mt-1 border border-rose-200/60 shadow-2xs">
               <span>{criticalCount} Critical • {conflicts.length - criticalCount} Warning</span>
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 flex flex-col justify-between bg-white border-slate-200/80 shadow-xs rounded-xl min-h-[112px]">
+        <Card className="p-4 flex flex-col justify-between bg-white border border-slate-200/80 shadow-2xs hover:shadow-card-soft rounded-2xl min-h-[116px] transition-all duration-200">
           <div className="flex items-start justify-between">
-            <span className="text-[27px] leading-none font-bold text-emerald-600 tracking-[-0.025em] font-mono">
+            <span className="text-[26px] leading-none font-bold text-emerald-600 tracking-tight font-sans">
               {autoResolvableCount}
             </span>
-            <div className="w-6 h-6 rounded-md border border-emerald-200/80 bg-emerald-50/60 flex items-center justify-center text-emerald-600 shrink-0">
+            <div className="w-7 h-7 rounded-full border border-emerald-200/80 bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
               <Sparkles className="h-3.5 w-3.5" />
             </div>
           </div>
           <div className="mt-2.5">
-            <div className="text-[12px] font-medium text-slate-600 tracking-[-0.005em]">
+            <div className="text-xs font-semibold text-slate-600 tracking-tight">
               Ripple-Resolvable
             </div>
-            <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-semibold mt-1 border border-emerald-200/50">
+            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10.5px] font-semibold mt-1 border border-emerald-200/50 shadow-2xs">
               <span>0-cascade alternatives ready</span>
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 flex flex-col justify-between bg-white border-slate-200/80 shadow-xs rounded-xl min-h-[112px]">
+        <Card className="p-4 flex flex-col justify-between bg-white border border-slate-200/80 shadow-2xs hover:shadow-card-soft rounded-2xl min-h-[116px] transition-all duration-200">
           <div className="flex items-start justify-between">
-            <span className="text-[27px] leading-none font-bold text-amber-600 tracking-[-0.025em] font-mono">
+            <span className="text-[26px] leading-none font-bold text-amber-600 tracking-tight font-sans">
               {noAlternativeCount}
             </span>
-            <div className="w-6 h-6 rounded-md border border-amber-200/80 bg-amber-50/60 flex items-center justify-center text-amber-600 shrink-0">
+            <div className="w-7 h-7 rounded-full border border-amber-200/80 bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
               <ShieldAlert className="h-3.5 w-3.5" />
             </div>
           </div>
           <div className="mt-2.5">
-            <div className="text-[12px] font-medium text-slate-600 tracking-[-0.005em]">
+            <div className="text-xs font-semibold text-slate-600 tracking-tight">
               Escalation Required
             </div>
-            <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 text-[11px] font-semibold mt-1 border border-amber-200/60">
+            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[10.5px] font-semibold mt-1 border border-amber-200/60 shadow-2xs">
               <span>Zero feasible campus substitutes</span>
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 flex flex-col justify-between bg-white border-slate-200/80 shadow-xs rounded-xl min-h-[112px]">
+        <Card className="p-4 flex flex-col justify-between bg-white border border-slate-200/80 shadow-2xs hover:shadow-card-soft rounded-2xl min-h-[116px] transition-all duration-200">
           <div className="flex items-start justify-between">
             <div className="text-sm font-bold text-slate-800 flex items-center gap-1.5 mt-0.5">
               <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
               <span>Deterministic [start, end)</span>
             </div>
-            <div className="w-6 h-6 rounded-md border border-slate-200/80 bg-slate-50/60 flex items-center justify-center text-slate-500 shrink-0">
+            <div className="w-7 h-7 rounded-full border border-slate-200/80 bg-slate-50 flex items-center justify-center text-slate-500 shrink-0">
               <Zap className="h-3.5 w-3.5" />
             </div>
           </div>
           <div className="mt-2.5">
-            <div className="text-[12px] font-medium text-slate-600 tracking-[-0.005em]">
+            <div className="text-xs font-semibold text-slate-600 tracking-tight">
               Constraint Engine Mode
             </div>
-            <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[11px] font-medium mt-1 border border-slate-200/60">
+            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10.5px] font-semibold mt-1 border border-slate-200/60 shadow-2xs">
               <span>Strict hard separation • 0 silent relaxation</span>
             </div>
           </div>
@@ -232,93 +232,95 @@ export default function ConflictsPage() {
       </div>
 
       {/* Category Filter Tabs & Orbitask View Switcher */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 pb-3">
         <div className="flex flex-wrap items-center gap-1.5">
           <div className="flex items-center gap-1 text-xs font-semibold text-slate-500 mr-1">
             <Filter className="h-3.5 w-3.5" />
             <span>Category:</span>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setCategoryFilter("all")}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-              categoryFilter === "all"
-                ? "bg-[rgb(var(--color-primary-light))] text-[rgb(var(--color-primary))] font-semibold"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            All ({conflicts.length})
-          </button>
+          <div className="inline-flex items-center bg-slate-100/90 p-1 rounded-full border border-slate-200/60 gap-1 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setCategoryFilter("all")}
+              className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                categoryFilter === "all"
+                  ? "bg-white text-slate-900 shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              All ({conflicts.length})
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setCategoryFilter("room_clash")}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-              categoryFilter === "room_clash"
-                ? "bg-[rgb(var(--color-primary-light))] text-[rgb(var(--color-primary))] font-semibold"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            Room Clashes
-          </button>
+            <button
+              type="button"
+              onClick={() => setCategoryFilter("room_clash")}
+              className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                categoryFilter === "room_clash"
+                  ? "bg-white text-slate-900 shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Room Clashes
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setCategoryFilter("faculty_overlap")}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-              categoryFilter === "faculty_overlap"
-                ? "bg-[rgb(var(--color-primary-light))] text-[rgb(var(--color-primary))] font-semibold"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            Faculty Overlaps
-          </button>
+            <button
+              type="button"
+              onClick={() => setCategoryFilter("faculty_overlap")}
+              className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                categoryFilter === "faculty_overlap"
+                  ? "bg-white text-slate-900 shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Faculty Overlaps
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setCategoryFilter("capacity_deficit")}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-              categoryFilter === "capacity_deficit"
-                ? "bg-[rgb(var(--color-primary-light))] text-[rgb(var(--color-primary))] font-semibold"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            Capacity Deficits
-          </button>
+            <button
+              type="button"
+              onClick={() => setCategoryFilter("capacity_deficit")}
+              className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                categoryFilter === "capacity_deficit"
+                  ? "bg-white text-slate-900 shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Capacity Deficits
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setCategoryFilter("maintenance_block")}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-              categoryFilter === "maintenance_block"
-                ? "bg-[rgb(var(--color-primary-light))] text-[rgb(var(--color-primary))] font-semibold"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            Maintenance Blocks
-          </button>
+            <button
+              type="button"
+              onClick={() => setCategoryFilter("maintenance_block")}
+              className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                categoryFilter === "maintenance_block"
+                  ? "bg-white text-slate-900 shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Maintenance Blocks
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setCategoryFilter("no_alternative")}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-              categoryFilter === "no_alternative"
-                ? "bg-red-100 text-red-800 font-semibold"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            No Feasible Alternative ({noAlternativeCount})
-          </button>
+            <button
+              type="button"
+              onClick={() => setCategoryFilter("no_alternative")}
+              className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                categoryFilter === "no_alternative"
+                  ? "bg-rose-100 text-rose-800 shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              No Feasible Alternative ({noAlternativeCount})
+            </button>
+          </div>
         </div>
 
         {/* Orbitask Table vs Cards Switcher */}
-        <div className="flex items-center bg-slate-100/80 p-0.5 rounded-lg border border-slate-200/80">
+        <div className="flex items-center bg-slate-100/90 p-1 rounded-full border border-slate-200/60 gap-1">
           <button
             type="button"
             onClick={() => setViewMode("cards")}
-            className={`px-2.5 py-1 rounded-md text-xs flex items-center gap-1.5 font-medium transition-colors ${
-              viewMode === "cards" ? "bg-white text-slate-900 shadow-xs font-semibold" : "text-slate-500 hover:text-slate-900"
+            className={`px-3 py-1 rounded-full text-xs flex items-center gap-1.5 font-semibold transition-all cursor-pointer ${
+              viewMode === "cards" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
             }`}
             title="Card View"
           >
@@ -328,13 +330,13 @@ export default function ConflictsPage() {
           <button
             type="button"
             onClick={() => setViewMode("table")}
-            className={`px-2.5 py-1 rounded-md text-xs flex items-center gap-1.5 font-medium transition-colors ${
-              viewMode === "table" ? "bg-white text-slate-900 shadow-xs font-semibold" : "text-slate-500 hover:text-slate-900"
+            className={`px-3 py-1 rounded-full text-xs flex items-center gap-1.5 font-semibold transition-all cursor-pointer ${
+              viewMode === "table" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
             }`}
             title="Orbitask Table View"
           >
             <Table className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Orbitask Table</span>
+            <span className="hidden sm:inline">Table</span>
           </button>
         </div>
       </div>
@@ -434,17 +436,17 @@ export default function ConflictsPage() {
             return (
               <Card
                 key={c.id}
-                className={`p-5 transition-all border rounded-xl ${
+                className={`p-5 transition-all duration-200 border rounded-2xl shadow-2xs hover:shadow-card-soft ${
                   !c.hasFeasibleAlternative
-                    ? "border-red-300 bg-red-50/15"
-                    : "border-slate-200 bg-white hover:border-slate-300"
+                    ? "border-rose-300 bg-rose-50/20"
+                    : "border-slate-200/80 bg-white hover:border-slate-300"
                 }`}
               >
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                   {/* Left Section: Conflict Description & Badges */}
-                  <div className="space-y-2 max-w-3xl">
+                  <div className="space-y-2.5 max-w-3xl">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                      <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-full">
                         {c.id}
                       </span>
                       <Badge
@@ -456,14 +458,15 @@ export default function ConflictsPage() {
                             : "info"
                         }
                         size="sm"
+                        className="rounded-full px-2.5 py-0.5 font-semibold text-[10px]"
                       >
                         {c.severity.toUpperCase()}
                       </Badge>
-                      <Badge variant="neutral" size="sm">
+                      <Badge variant="neutral" size="sm" className="rounded-full px-2.5 py-0.5 font-medium text-[10px]">
                         {c.type.replace(/_/g, " ").toUpperCase()}
                       </Badge>
                       {!c.hasFeasibleAlternative && (
-                        <Badge variant="critical" size="sm" className="font-mono">
+                        <Badge variant="critical" size="sm" className="font-mono rounded-full px-2.5 py-0.5 text-[10px]">
                           NO ALTERNATIVE ON CAMPUS
                         </Badge>
                       )}
@@ -474,23 +477,23 @@ export default function ConflictsPage() {
 
                     {/* Recommended Alternative Teaser */}
                     {c.hasFeasibleAlternative && recSolution && (
-                      <div className="p-2.5 rounded-md bg-blue-50/50 border border-blue-100 text-xs flex items-center justify-between text-slate-700">
+                      <div className="p-3 rounded-2xl bg-blue-50/60 border border-blue-100 text-xs flex items-center justify-between text-slate-700">
                         <div className="flex items-center gap-2">
                           <Sparkles className="h-3.5 w-3.5 text-[rgb(var(--color-primary))]" />
-                          <span className="font-medium text-blue-950">Ripple Suggestion:</span>
+                          <span className="font-semibold text-blue-950">Ripple Suggestion:</span>
                           <span className="text-[11px] text-slate-600 truncate max-w-xl">
                             {recSolution.description}
                           </span>
                         </div>
-                        <span className="font-mono text-[11px] font-semibold text-emerald-600 shrink-0">
+                        <span className="font-mono text-[11px] font-bold text-emerald-600 shrink-0">
                           Score {recSolution.feasibilityScore}/100
                         </span>
                       </div>
                     )}
 
                     {!c.hasFeasibleAlternative && (
-                      <div className="p-2.5 rounded-md bg-red-50 border border-red-200 text-xs flex items-center gap-2 text-red-900 font-medium">
-                        <ShieldAlert className="h-4 w-4 text-red-600 shrink-0" />
+                      <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-xs flex items-center gap-2 text-rose-900 font-medium">
+                        <ShieldAlert className="h-4 w-4 text-rose-600 shrink-0" />
                         <span>
                           Statutory containment requirement cannot be relaxed. Requires Dean escalation.
                         </span>
@@ -504,20 +507,10 @@ export default function ConflictsPage() {
                       variant={c.hasFeasibleAlternative ? "default" : "outline"}
                       size="sm"
                       onClick={() => handleOpenResolve(c)}
-                      className="gap-1.5 text-xs"
+                      className="gap-1.5 text-xs rounded-full px-4 h-8 font-semibold shadow-xs"
                     >
-                      {c.hasFeasibleAlternative ? (
-                        <>
-                          <Sparkles className="h-3.5 w-3.5" />
-                          <span>Resolve Conflict</span>
-                        </>
-                      ) : (
-                        <>
-                          <ShieldAlert className="h-3.5 w-3.5 text-red-600" />
-                          <span>Inspect Diagnostics</span>
-                        </>
-                      )}
-                      <ArrowRight className="h-3.5 w-3.5" />
+                      <Sparkles className="h-3.5 w-3.5" />
+                      <span>{c.hasFeasibleAlternative ? "Resolve with Ripple" : "Inspect Clash"}</span>
                     </Button>
                   </div>
                 </div>

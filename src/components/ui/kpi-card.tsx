@@ -34,14 +34,14 @@ export function KpiCard({
   return (
     <Card
       className={cn(
-        "p-4 flex flex-col justify-between bg-white border-slate-200/80 shadow-xs rounded-xl min-h-[112px] hover:-translate-y-0.5 transition-all duration-150 relative overflow-hidden",
-        alert && "border-amber-300/80 bg-amber-50/10",
+        "p-4 flex flex-col justify-between bg-white border border-slate-200/80 shadow-2xs hover:shadow-card-soft rounded-2xl min-h-[116px] hover:-translate-y-0.5 transition-all duration-200 relative overflow-hidden",
+        alert && "border-amber-300/80 bg-amber-50/20",
         className
       )}
     >
       <div className="flex items-start justify-between">
         <div className="flex items-baseline gap-2">
-          <span className="text-[27px] leading-none font-bold tracking-[-0.025em] text-slate-900 font-mono">
+          <span className="text-[26px] leading-none font-bold tracking-tight text-slate-900 font-sans">
             {value}
           </span>
           {trend && (
@@ -55,7 +55,7 @@ export function KpiCard({
         {Icon && (
           <div
             className={cn(
-              "w-6 h-6 rounded-md flex items-center justify-center shrink-0",
+              "w-7 h-7 rounded-full flex items-center justify-center shrink-0 border",
               iconBg
             )}
           >

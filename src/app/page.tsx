@@ -155,10 +155,10 @@ export default function DashboardPage() {
         ]}
         badge={
           <div className="flex items-center gap-1.5">
-            <Badge variant="success" size="sm" dot className="font-medium text-[11px]">
+            <Badge variant="success" size="sm" dot className="font-semibold text-[11px] rounded-full px-2.5 py-0.5">
               Term Active • Draft v2.4
             </Badge>
-            <Badge variant="outline" size="sm" className="bg-slate-50 border-slate-200 text-slate-500 font-normal text-[10.5px] py-0 hidden sm:inline-flex">
+            <Badge variant="outline" size="sm" className="bg-slate-50 border-slate-200 text-slate-500 font-medium text-[10.5px] py-0.5 px-2.5 rounded-full hidden sm:inline-flex">
               Timora Institute
             </Badge>
           </div>
@@ -169,7 +169,7 @@ export default function DashboardPage() {
               variant="outline"
               size="sm"
               onClick={handleRunScan}
-              className="gap-1.5 border-slate-200 text-xs h-8"
+              className="gap-1.5 border-slate-200/80 bg-white/80 hover:bg-white text-xs h-8 rounded-full px-3.5 shadow-2xs font-semibold"
             >
               <RefreshCw className="h-3.5 w-3.5 text-slate-500" />
               <span>Run Pre-flight Scan</span>
@@ -179,7 +179,7 @@ export default function DashboardPage() {
               variant="default"
               size="sm"
               onClick={() => setPublishDialogOpen(true)}
-              className="gap-1.5 text-xs h-8 shadow-xs"
+              className="gap-1.5 text-xs h-8 rounded-full px-3.5 shadow-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white"
             >
               <CalendarCheck className="h-3.5 w-3.5" />
               <span>Publish Timetable</span>

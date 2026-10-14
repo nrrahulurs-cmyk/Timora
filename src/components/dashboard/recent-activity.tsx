@@ -19,11 +19,11 @@ export function RecentActivity({
   selectedCategory,
 }: RecentActivityProps) {
   return (
-    <Card className="flex flex-col justify-between bg-white border border-slate-200/80 shadow-xs rounded-xl overflow-hidden">
-      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3 gap-2 border-b border-slate-100 bg-slate-50/40">
+    <Card className="flex flex-col justify-between bg-white border border-slate-200/80 shadow-xs rounded-3xl overflow-hidden">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-5 py-3.5 gap-2 border-b border-slate-100 bg-slate-50/50">
         <div>
           <div className="flex items-center gap-2">
-            <History className="h-4 w-4 text-[#0066cc]" />
+            <History className="h-4 w-4 text-[rgb(var(--color-primary))]" />
             <CardTitle className="text-[14px] font-semibold text-slate-900 tracking-[-0.01em]">
               Recent Scheduling Activity
             </CardTitle>
@@ -34,17 +34,17 @@ export function RecentActivity({
         </div>
 
         <Tabs value={selectedCategory} onValueChange={onFilterChange}>
-          <TabsList className="h-7 p-0.5 bg-slate-100 border border-slate-200/60">
-            <TabsTrigger value="All" className="text-[11px] px-2.5 py-0.5 data-[state=active]:bg-white data-[state=active]:shadow-xs">
+          <TabsList className="h-7 p-0.5 rounded-full bg-slate-100/90 border border-slate-200/60 gap-0.5">
+            <TabsTrigger value="All" className="text-[11px] px-3 py-0.5 rounded-full font-semibold data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-2xs">
               All
             </TabsTrigger>
-            <TabsTrigger value="modification" className="text-[11px] px-2.5 py-0.5 data-[state=active]:bg-white data-[state=active]:shadow-xs">
+            <TabsTrigger value="modification" className="text-[11px] px-3 py-0.5 rounded-full font-semibold data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-2xs">
               Changes
             </TabsTrigger>
-            <TabsTrigger value="approval" className="text-[11px] px-2.5 py-0.5 data-[state=active]:bg-white data-[state=active]:shadow-xs">
+            <TabsTrigger value="approval" className="text-[11px] px-3 py-0.5 rounded-full font-semibold data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-2xs">
               Approvals
             </TabsTrigger>
-            <TabsTrigger value="conflict" className="text-[11px] px-2.5 py-0.5 data-[state=active]:bg-white data-[state=active]:shadow-xs">
+            <TabsTrigger value="conflict" className="text-[11px] px-3 py-0.5 rounded-full font-semibold data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-2xs">
               Solver
             </TabsTrigger>
           </TabsList>
@@ -68,16 +68,16 @@ export function RecentActivity({
             return (
               <div
                 key={item.id}
-                className="px-4 py-2.5 flex items-center justify-between gap-3 hover:bg-slate-50/70 transition-colors"
+                className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-slate-50/80 transition-colors"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div
-                    className={`h-7 w-7 rounded-md border flex items-center justify-center shrink-0 text-xs font-semibold ${
+                    className={`h-8 w-8 rounded-full border flex items-center justify-center shrink-0 text-xs font-semibold ${
                       isBot
                         ? "bg-slate-100 border-slate-200 text-slate-600"
                         : isApproval
                         ? "bg-emerald-50 border-emerald-200/60 text-emerald-700"
-                        : "bg-blue-50 border-blue-200/60 text-[#0066cc]"
+                        : "bg-blue-50 border-blue-200/60 text-[rgb(var(--color-primary))]"
                     }`}
                   >
                     {isBot ? <Zap className="h-3.5 w-3.5" /> : <User className="h-3.5 w-3.5" />}
@@ -115,7 +115,7 @@ export function RecentActivity({
                         : "secondary"
                     }
                     size="sm"
-                    className="text-[9.5px] py-0 px-1.5 uppercase font-medium tracking-wide"
+                    className="text-[9.5px] py-0.5 px-2 uppercase font-medium tracking-wide rounded-full shadow-2xs"
                   >
                     {item.category === "conflict" ? "Solver" : item.category}
                   </Badge>
