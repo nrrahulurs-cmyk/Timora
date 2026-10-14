@@ -54,50 +54,52 @@ export function GridView({
   }, [sessions, timeSlots]);
 
   return (
-    <div className="bg-white rounded-lg border border-[rgb(var(--color-border-default))] shadow-xs overflow-hidden">
-      <div className="overflow-x-auto scrollbar-thin">
-        <table className="w-full min-w-[900px] border-collapse table-fixed">
-          {/* ── Table Header: Days of the Week ────────────────────────────── */}
+    <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+      <div className="overflow-x-auto scrollbar-thin p-3 lg:p-5">
+        <table className="w-full min-w-[960px] border-collapse table-fixed">
+          {/* ── Table Header: Days of the Week (Stitch Style) ──────────────── */}
           <thead>
-            <tr className="bg-slate-50 border-b border-[rgb(var(--color-border-default))] text-slate-700">
-              <th className="w-32 p-3 text-left font-semibold text-xs border-r border-slate-200 shrink-0 sticky left-0 bg-slate-50 z-10">
-                <div className="flex items-center gap-1.5 text-slate-500">
-                  <Clock className="h-3.5 w-3.5" />
-                  <span>Time / Day</span>
-                </div>
+            <tr className="border-b border-slate-200/70 text-slate-700">
+              <th className="w-36 pb-4 pt-1 text-left pl-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                Time
               </th>
-              {displayDays.map((day) => (
-                <th
-                  key={day}
-                  className="p-3 text-left font-semibold text-xs border-r last:border-r-0 border-slate-200"
-                >
-                  <div className="flex items-center justify-between">
-                    <span>{day}</span>
-                    {day === "Saturday" && (
-                      <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded font-normal border border-amber-200">
-                        Makeup / Labs
+              {displayDays.map((day, idx) => {
+                const dayNum = 14 + idx;
+                const isTuesday = day === "Tuesday";
+
+                return (
+                  <th key={day} className="pb-4 pt-1 px-2 text-center text-xs font-semibold">
+                    <span className="sr-only">{day}</span>
+                    {isTuesday ? (
+                      <div className="inline-flex items-center gap-2 px-3.5 py-1 bg-slate-900 text-white rounded-full text-xs font-semibold shadow-xs">
+                        <span>{dayNum} • {day.slice(0, 3)}</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      </div>
+                    ) : (
+                      <span className="text-slate-600 font-semibold">
+                        {dayNum} • {day.slice(0, 3)}
                       </span>
                     )}
-                  </div>
-                </th>
-              ))}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
 
           {/* ── Grid Body: Slots × Days ──────────────────────────────────── */}
           <tbody className="divide-y divide-slate-100 text-xs">
             {SLOT_DEFINITIONS.map((def) => (
-              <tr key={def.index} className="group hover:bg-slate-50/30 transition-colors">
-                {/* Time slot label (Left sticky column) */}
-                <td className="p-3 border-r border-slate-200 bg-slate-50/60 sticky left-0 z-10 align-top">
-                  <div className="font-mono text-[11px] font-bold text-slate-700">
-                    {def.label.split("–")[0]}
+              <tr key={def.index} className="group hover:bg-slate-50/20 transition-colors">
+                {/* Time slot label (Left column) */}
+                <td className="py-4 pl-3 pr-2 align-top w-36">
+                  <div className="text-sm font-bold text-slate-800 tracking-tight font-sans">
+                    {def.label.split(" ")[0]}
                   </div>
-                  <div className="font-mono text-[10px] text-slate-400">
-                    – {def.label.split("–")[1]}
+                  <div className="text-[11px] font-semibold text-slate-500 mt-0.5">
+                    – {def.label.split("–")[1]?.trim()}
                   </div>
-                  <div className="mt-2 text-[9px] font-medium text-slate-400 uppercase tracking-wider">
-                    {def.period}
+                  <div className="mt-2 text-[10px] text-slate-400 font-medium bg-slate-50 border border-slate-200/60 rounded-full px-2 py-0.5 inline-block">
+                    90 min
                   </div>
                 </td>
 
@@ -108,27 +110,18 @@ export function GridView({
                   const isDoubleBooked = cellSessions.length > 1;
 
                   return (
-                    <td
-                      key={day}
-                      className={`p-1.5 border-r last:border-r-0 border-slate-200 align-top transition-colors min-h-[130px] ${
-                        isDoubleBooked
-                          ? "bg-rose-50/40"
-                          : cellSessions.length > 0
-                          ? "bg-white"
-                          : "hover:bg-slate-50/60"
-                      }`}
-                    >
-                      {/* If multiple sessions clash in same cell */}
+                    <td key={day} className="p-2 align-top min-h-[120px]">
+                      {/* Double-booking warning banner */}
                       {isDoubleBooked && (
-                        <div className="mb-1 px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 text-[10px] font-bold flex items-center gap-1 border border-rose-300">
+                        <div className="mb-2 px-2 py-1 rounded-xl bg-rose-100/80 text-rose-800 text-[10px] font-bold flex items-center gap-1.5 border border-rose-300">
                           <AlertCircle className="h-3 w-3 shrink-0 text-rose-600" />
-                          <span>Double-Booking ({cellSessions.length} Classes)</span>
+                          <span>Clash ({cellSessions.length} Classes)</span>
                         </div>
                       )}
 
                       {/* Render Class Cards */}
                       {cellSessions.length > 0 ? (
-                        <div className="space-y-1.5">
+                        <div className="space-y-2">
                           {cellSessions.map((enr) => (
                             <ClassCard
                               key={enr.session.id}
@@ -143,11 +136,11 @@ export function GridView({
                         <button
                           type="button"
                           onClick={() => onEmptySlotClick?.(day, def.index)}
-                          className="w-full h-full min-h-[105px] rounded border border-dashed border-slate-200 hover:border-blue-300 hover:bg-blue-50/40 transition-all flex flex-col items-center justify-center text-slate-300 hover:text-[rgb(var(--color-primary))] text-[11px] gap-1 group/btn p-2"
+                          className="w-full h-full min-h-[105px] rounded-2xl border border-dashed border-slate-200 hover:border-slate-300 flex items-center justify-center p-3 text-slate-300 hover:text-slate-500 hover:bg-slate-50/50 transition cursor-pointer group/btn"
+                          title={`Schedule slot on ${day}`}
                         >
-                          <Plus className="h-4 w-4 opacity-0 group-hover/btn:opacity-100 transition-opacity" />
-                          <span className="opacity-0 group-hover/btn:opacity-100 transition-opacity font-medium text-[10px]">
-                            Schedule Class
+                          <span className="text-xl font-light leading-none text-slate-300 group-hover/btn:text-slate-500 transition-colors">
+                            +
                           </span>
                         </button>
                       )}
@@ -159,6 +152,39 @@ export function GridView({
           </tbody>
         </table>
       </div>
+
+      {/* ── Stitch Footer Operational Metrics Bar ──────────────────────── */}
+      <footer className="px-5 py-3.5 border-t border-slate-100 bg-slate-50/50 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+        <div className="flex items-center gap-5">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span>
+              Allocated: <strong className="text-slate-800">38 hrs / wk</strong>
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-400" />
+            <span>
+              Practical Labs: <strong className="text-slate-800">12 hrs</strong>
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-rose-500" />
+            <span>
+              Attention Required:{" "}
+              <strong className="text-rose-600 font-bold">5 Flagged</strong>
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 text-slate-400 text-[11px]">
+          <span>AI Constraint Engine: Active</span>
+          <span className="text-slate-200">•</span>
+          <span className="text-[rgb(var(--color-primary))] font-semibold">
+            Postgres 17 Engine Online
+          </span>
+        </div>
+      </footer>
     </div>
   );
 }

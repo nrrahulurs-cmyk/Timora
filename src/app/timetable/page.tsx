@@ -19,6 +19,7 @@ import { TableView } from "@/components/timetable/table-view";
 import { SessionDetailSheet } from "@/components/timetable/session-detail-sheet";
 import { MoveSessionModal } from "@/components/timetable/move-session-modal";
 import { PublishDialog } from "@/components/timetable/publish-dialog";
+import { ExportDialog } from "@/components/timetable/export-dialog";
 import type { EnrichedSession } from "@/components/timetable/class-card";
 import {
   buildExportRows,
@@ -70,6 +71,7 @@ export default function TimetableStudioPage() {
   const [selectedSession, setSelectedSession] = React.useState<EnrichedSession | null>(null);
   const [movingSession, setMovingSession] = React.useState<EnrichedSession | null>(null);
   const [publishDialogOpen, setPublishDialogOpen] = React.useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = React.useState(false);
   const [isExporting, setIsExporting] = React.useState(false);
 
   // Load latest dataset from repository
@@ -448,6 +450,7 @@ export default function TimetableStudioPage() {
         faculty={dataset.faculty}
         totalFilteredCount={filteredSessions.length}
         onExport={handleExport}
+        onOpenExport={() => setExportDialogOpen(true)}
         isExporting={isExporting}
       />
 
@@ -503,6 +506,22 @@ export default function TimetableStudioPage() {
         onConfirmPublish={handlePublishConfirm}
         versionNumber="v2.4-preview"
         activeConflicts={activeConflicts}
+      />
+
+      {/* ── Google Stitch Glassmorphic Export Dialog ──────────────────────── */}
+      <ExportDialog
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
+        onExport={handleExport}
+        cohortLabel={
+          filters.sectionId !== "all"
+            ? `Cohort: ${dataset.sections.find((s) => s.id === filters.sectionId)?.semester || 5}th Sem (${
+                dataset.sections.find((s) => s.id === filters.sectionId)?.sectionCode || "Sec-B"
+              })`
+            : "All Cohorts"
+        }
+        weekLabel={`Week ${9 + filters.weekOffset} (Oct 19 – Oct 24, 2026)`}
+        isExporting={isExporting}
       />
     </div>
   );

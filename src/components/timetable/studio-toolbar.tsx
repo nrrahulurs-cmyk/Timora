@@ -23,6 +23,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -56,6 +57,7 @@ interface StudioToolbarProps {
   faculty: FacultyMember[];
   totalFilteredCount: number;
   onExport?: (format: "pdf" | "csv" | "excel") => void;
+  onOpenExport?: () => void;
   isExporting?: boolean;
 }
 
@@ -70,6 +72,7 @@ export function StudioToolbar({
   faculty,
   totalFilteredCount,
   onExport,
+  onOpenExport,
   isExporting = false,
 }: StudioToolbarProps) {
   const [showAdvanced, setShowAdvanced] = React.useState(false);
@@ -86,6 +89,18 @@ export function StudioToolbar({
     const weekNumber = 9 + filters.weekOffset;
     return `Week ${weekNumber}: ${mStr} – ${sStr}`;
   }, [filters.weekOffset]);
+
+  // Active cohort label
+  const activeCohortLabel = React.useMemo(() => {
+    const activeSec = sections.find((s) => s.id === filters.sectionId);
+    if (activeSec) {
+      return `Cohort: ${activeSec.semester}th Sem (${activeSec.sectionCode})`;
+    }
+    if (filters.semester !== "all") {
+      return `Cohort: Semester ${filters.semester}`;
+    }
+    return "All Cohorts";
+  }, [sections, filters.sectionId, filters.semester]);
 
   // Filter sections by department/semester
   const availableSections = React.useMemo(() => {
@@ -121,221 +136,154 @@ export function StudioToolbar({
   };
 
   return (
-    <div className="space-y-3 bg-white p-3.5 rounded-lg border border-[rgb(var(--color-border-default))] shadow-xs">
-      {/* ── Primary Row: Context Selectors, Week Navigator & View Switch ─ */}
+    <div className="space-y-3 bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs">
+      {/* ── Stitch Primary Row: Segmented Controls, Date Navigator, Cohort & Export ─ */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {/* Left: Department, Semester, Section select controls */}
+        {/* Left: View Mode Segmented Control + Week Stepper */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Segmented View Switcher Pill */}
+          <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-full text-xs font-medium">
+            <button
+              type="button"
+              onClick={() => onViewModeChange("grid")}
+              className={cn(
+                "px-3.5 py-1 rounded-full transition-all duration-150",
+                viewMode === "grid"
+                  ? "bg-white text-slate-900 shadow-2xs font-semibold"
+                  : "text-slate-500 hover:text-slate-800"
+              )}
+            >
+              Grid
+            </button>
+            <button
+              type="button"
+              onClick={() => onViewModeChange("table")}
+              className={cn(
+                "px-3.5 py-1 rounded-full transition-all duration-150",
+                viewMode === "table"
+                  ? "bg-white text-slate-900 shadow-2xs font-semibold"
+                  : "text-slate-500 hover:text-slate-800"
+              )}
+            >
+              Table
+            </button>
+          </div>
+
+          {/* Date Navigator Pill */}
+          <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-50 border border-slate-200/70 rounded-full text-xs">
+            <button
+              type="button"
+              onClick={() => onFilterChange({ ...filters, weekOffset: filters.weekOffset - 1 })}
+              className="text-slate-400 hover:text-slate-700 p-0.5 rounded-full hover:bg-slate-200/50 transition"
+              title="Previous Week"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+
+            <span className="font-semibold text-slate-700 px-1.5 min-w-[150px] text-center tracking-tight">
+              {weekDates}
+            </span>
+
+            <button
+              type="button"
+              onClick={() => onFilterChange({ ...filters, weekOffset: filters.weekOffset + 1 })}
+              className="text-slate-400 hover:text-slate-700 p-0.5 rounded-full hover:bg-slate-200/50 transition"
+              title="Next Week"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+
+            {filters.weekOffset !== 0 && (
+              <button
+                type="button"
+                onClick={() => onFilterChange({ ...filters, weekOffset: 0 })}
+                className="text-[10px] font-semibold text-[rgb(var(--color-primary))] px-1.5 py-0.2 bg-blue-50 border border-blue-200/60 rounded-full ml-0.5"
+              >
+                Today
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Right: Cohort Selector, Filter Toggle & Export Trigger */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Department Select */}
-          <div className="relative">
-            <select
-              value={filters.departmentId}
-              onChange={(e) => {
-                onFilterChange({
-                  ...filters,
-                  departmentId: e.target.value,
-                  sectionId: "all", // reset section when department changes
-                });
-              }}
-              className="h-8.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 font-medium hover:border-slate-300 focus:outline-none focus:ring-1 focus:ring-[rgb(var(--color-primary))]"
-              aria-label="Filter by department"
-            >
-              <option value="all">All Departments (4)</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name} ({d.code})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Semester Select */}
-          <div className="relative">
-            <select
-              value={filters.semester}
-              onChange={(e) => {
-                onFilterChange({
-                  ...filters,
-                  semester: e.target.value,
-                  sectionId: "all",
-                });
-              }}
-              className="h-8.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 font-medium hover:border-slate-300 focus:outline-none focus:ring-1 focus:ring-[rgb(var(--color-primary))]"
-              aria-label="Filter by semester"
-            >
-              <option value="all">All Semesters</option>
-              <option value="3">Semester 3</option>
-              <option value="5">Semester 5</option>
-              <option value="7">Semester 7</option>
-            </select>
-          </div>
-
-          {/* Section Select */}
+          {/* Cohort Selector Pill Dropdown */}
           <div className="relative">
             <select
               value={filters.sectionId}
               onChange={(e) => onFilterChange({ ...filters, sectionId: e.target.value })}
-              className="h-8.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 font-medium hover:border-slate-300 focus:outline-none focus:ring-1 focus:ring-[rgb(var(--color-primary))]"
-              aria-label="Filter by student section"
+              className="h-8.5 rounded-full border border-slate-200/80 bg-white pl-3.5 pr-8 py-1 text-xs text-slate-700 font-medium hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer shadow-2xs"
             >
-              <option value="all">All Sections ({availableSections.length})</option>
+              <option value="all">Cohort: All Sections</option>
               {availableSections.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.sectionCode} • {s.name} ({s.studentCount} stds)
+                  Cohort: {s.semester}th Sem ({s.sectionCode})
                 </option>
               ))}
             </select>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
           </div>
 
-          {/* Toggle Advanced Filters Button */}
-          <Button
-            variant="ghost"
-            size="sm"
+          {/* Department Quick Filter */}
+          <div className="relative hidden sm:block">
+            <select
+              value={filters.departmentId}
+              onChange={(e) =>
+                onFilterChange({
+                  ...filters,
+                  departmentId: e.target.value,
+                  sectionId: "all",
+                })
+              }
+              className="h-8.5 rounded-full border border-slate-200/80 bg-white pl-3.5 pr-8 py-1 text-xs text-slate-700 font-medium hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer shadow-2xs"
+            >
+              <option value="all">Dept: All</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  Dept: {d.code}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+          </div>
+
+          {/* Advanced Filter Toggle Pill */}
+          <button
+            type="button"
             onClick={() => setShowAdvanced(!showAdvanced)}
-            className={`h-8.5 text-xs gap-1.5 px-2.5 ${
+            className={cn(
+              "inline-flex items-center gap-1.5 px-3.5 py-1.5 border text-xs font-medium rounded-full cursor-pointer transition shadow-2xs",
               showAdvanced || activeFilterCount > 0
-                ? "bg-blue-50 text-[rgb(var(--color-primary))] font-semibold"
-                : "text-slate-600 hover:bg-slate-50 border border-slate-200"
-            }`}
+                ? "bg-blue-50 border-blue-200 text-[rgb(var(--color-primary))] font-semibold"
+                : "bg-white border-slate-200/80 hover:border-slate-300 text-slate-700"
+            )}
           >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            <span>Filters</span>
+            <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400" />
+            <span>Filter</span>
             {activeFilterCount > 0 && (
               <span className="w-4 h-4 rounded-full bg-[rgb(var(--color-primary))] text-white text-[10px] flex items-center justify-center font-bold">
                 {activeFilterCount}
               </span>
             )}
-          </Button>
-        </div>
+          </button>
 
-        {/* Center: Week & Date Navigation */}
-        <div className="flex items-center gap-1.5 bg-slate-50 p-1 rounded-md border border-slate-200/80">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => onFilterChange({ ...filters, weekOffset: filters.weekOffset - 1 })}
-            className="h-7 w-7 text-slate-600 hover:bg-white hover:text-slate-900"
-            title="Previous Week"
+          {/* Stitch Export Button Pill */}
+          <button
+            type="button"
+            id="timetable-export-button"
+            disabled={isExporting}
+            onClick={() => {
+              if (onOpenExport) {
+                onOpenExport();
+              } else if (onExport) {
+                onExport("pdf");
+              }
+            }}
+            className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-white hover:bg-slate-50 border border-slate-200/80 hover:border-slate-300 text-slate-700 text-xs font-medium rounded-full cursor-pointer transition shadow-2xs"
           >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-
-          <span className="text-xs font-semibold text-slate-800 px-2 tracking-tight min-w-[170px] text-center">
-            {weekDates}
-          </span>
-
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => onFilterChange({ ...filters, weekOffset: filters.weekOffset + 1 })}
-            className="h-7 w-7 text-slate-600 hover:bg-white hover:text-slate-900"
-            title="Next Week"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-
-          {filters.weekOffset !== 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onFilterChange({ ...filters, weekOffset: 0 })}
-              className="h-7 text-[10px] px-1.5 py-0 bg-white border-slate-200 text-slate-600 ml-1"
-            >
-              Current
-            </Button>
-          )}
-        </div>
-
-        {/* Right: Export Menu & View Switch (Grid / Table) */}
-        <div className="flex items-center gap-2">
-          {/* Download & Export Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={isExporting}
-                className="h-8.5 gap-1.5 border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300"
-                id="timetable-export-button"
-              >
-                <Download className="h-3.5 w-3.5 text-[rgb(var(--color-primary))]" />
-                <span>{isExporting ? "Generating..." : "Export"}</span>
-                <ChevronDown className="h-3 w-3 opacity-50" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-60 p-1.5">
-              <DropdownMenuLabel className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider py-1">
-                Download Weekly Timetable
-              </DropdownMenuLabel>
-              <DropdownMenuItem
-                onClick={() => onExport?.("pdf")}
-                className="text-xs gap-2.5 cursor-pointer py-2 focus:bg-blue-50"
-              >
-                <div className="w-6 h-6 rounded bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center shrink-0">
-                  <FileText className="h-3.5 w-3.5" />
-                </div>
-                <div>
-                  <div className="font-semibold text-slate-800">Download PDF (.pdf)</div>
-                  <div className="text-[10px] text-slate-500">Landscape print-ready schedule</div>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => onExport?.("excel")}
-                className="text-xs gap-2.5 cursor-pointer py-2 focus:bg-blue-50"
-              >
-                <div className="w-6 h-6 rounded bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0">
-                  <FileSpreadsheet className="h-3.5 w-3.5" />
-                </div>
-                <div>
-                  <div className="font-semibold text-slate-800">Download Excel (.xlsx)</div>
-                  <div className="text-[10px] text-slate-500">Multi-sheet styled workbook</div>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => onExport?.("csv")}
-                className="text-xs gap-2.5 cursor-pointer py-2 focus:bg-blue-50"
-              >
-                <div className="w-6 h-6 rounded bg-blue-50 border border-blue-200 text-blue-700 flex items-center justify-center shrink-0">
-                  <File className="h-3.5 w-3.5" />
-                </div>
-                <div>
-                  <div className="font-semibold text-slate-800">Download CSV (.csv)</div>
-                  <div className="text-[10px] text-slate-500">UTF-8 compatible tabular data</div>
-                </div>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* View Switch (Grid / Table) */}
-          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-            <Button
-              variant={viewMode === "grid" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => onViewModeChange("grid")}
-              className={`h-7.5 px-3 text-xs gap-1.5 rounded-md ${
-                viewMode === "grid"
-                  ? "bg-white text-[rgb(var(--color-primary))] shadow-xs font-semibold hover:bg-white"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-transparent"
-              }`}
-            >
-              <CalendarDays className="h-3.5 w-3.5" />
-              <span>Grid View</span>
-            </Button>
-
-            <Button
-              variant={viewMode === "table" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => onViewModeChange("table")}
-              className={`h-7.5 px-3 text-xs gap-1.5 rounded-md ${
-                viewMode === "table"
-                  ? "bg-white text-[rgb(var(--color-primary))] shadow-xs font-semibold hover:bg-white"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-transparent"
-              }`}
-            >
-              <TableIcon className="h-3.5 w-3.5" />
-              <span>Table View</span>
-            </Button>
-          </div>
+            <Download className="w-3.5 h-3.5 text-slate-500" />
+            <span>{isExporting ? "Generating..." : "Export"}</span>
+          </button>
         </div>
       </div>
 
