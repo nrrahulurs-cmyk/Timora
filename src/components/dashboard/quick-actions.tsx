@@ -97,7 +97,7 @@ export function QuickActions({
       </CardHeader>
 
       <CardContent className="p-3.5">
-        <div className="grid grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-2 gap-2.5">
           {actions.map((act) => {
             const Icon = act.icon;
             const isAlert = act.badgeVariant === "error";

@@ -143,20 +143,16 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* ── A. Page Heading (Google Stitch Top Action Bar) ── */}
+    <div className="space-y-6 pb-24">
+      {/* ── A. Page Heading (Concise Workspace Header) ── */}
       <WorkspaceHeader
         section="Overview"
         title="Academic Operations Overview"
+        subtitle="Fall 2026 Academic Session • 97.4% curriculum allocated • 5 conflicts flagged • 11 rooms available"
         badge={
-          <div className="flex items-center gap-1.5">
-            <Badge variant="success" size="sm" dot className="font-semibold text-[11px] rounded-full px-2.5 py-0.5">
-              Term Active • Draft v2.4
-            </Badge>
-            <Badge variant="outline" size="sm" className="bg-slate-50 border-slate-200 text-slate-500 font-medium text-[10.5px] py-0.5 px-2.5 rounded-full hidden sm:inline-flex">
-              Timora Institute
-            </Badge>
-          </div>
+          <Badge variant="success" size="sm" dot className="font-semibold text-[11px] rounded-full px-2.5 py-0.5">
+            Fall 2026 • Draft v2.4
+          </Badge>
         }
         actions={
           <>
@@ -164,7 +160,7 @@ export default function DashboardPage() {
               variant="outline"
               size="sm"
               onClick={handleRunScan}
-              className="gap-1.5 border-slate-200/80 bg-white hover:bg-slate-50 text-xs h-8 rounded-full px-3.5 shadow-2xs font-semibold text-slate-700"
+              className="gap-1.5 border-slate-200/80 bg-white hover:bg-slate-50 text-xs h-8 rounded-full px-3.5 shadow-2xs font-semibold text-slate-700 cursor-pointer"
             >
               <RefreshCw className="h-3.5 w-3.5 text-slate-500" />
               <span>Run Pre-flight Scan</span>
@@ -174,7 +170,7 @@ export default function DashboardPage() {
               variant="default"
               size="sm"
               onClick={() => setPublishDialogOpen(true)}
-              className="gap-1.5 text-xs h-8 rounded-full px-4 shadow-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white"
+              className="gap-1.5 text-xs h-8 rounded-full px-4 shadow-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white cursor-pointer"
             >
               <CalendarCheck className="h-3.5 w-3.5" />
               <span>Publish Timetable</span>
@@ -183,10 +179,11 @@ export default function DashboardPage() {
         }
       />
 
-      {/* ── B. KPI Row (Five Cards with Restrained Indicators) ── */}
+      {/* ── B. KPI Row (Five Cards with Dominant Values & Visual Progress) ── */}
       {metrics && (
         <KpiRow
           metrics={metrics}
+          onScheduledClassesClick={() => router.push("/timetable")}
           onConflictClick={() => {
             setSelectedAttentionItem(attentionItems[0] || null);
             setResolveModalOpen(true);
@@ -197,14 +194,14 @@ export default function DashboardPage() {
       )}
 
       {/* ── C. Main Middle Row (Large Chart + Attention Panel) ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
         {/* Left: Large Allocation & Utilisation Chart (2 cols) */}
-        <div className="lg:col-span-2">
+        <div className="xl:col-span-2">
           <AnalyticsChart data={chartData} />
         </div>
 
         {/* Right: Requires Attention Panel (1 col) */}
-        <div className="lg:col-span-1">
+        <div className="xl:col-span-1">
           <AttentionPanel
             items={attentionItems}
             onSelectItem={handleSelectAttentionItem}
@@ -214,9 +211,9 @@ export default function DashboardPage() {
       </div>
 
       {/* ── D. Bottom Row (Recent Activity + Quick Actions) ───── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
         {/* Left: Recent Scheduling Activity (2 cols) */}
-        <div className="lg:col-span-2">
+        <div className="xl:col-span-2">
           <RecentActivity
             activities={activities}
             onFilterChange={handleFilterChange}
@@ -225,7 +222,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Right: Quick Actions Shortcuts (1 col) */}
-        <div className="lg:col-span-1">
+        <div className="xl:col-span-1">
           <QuickActions
             activeConflictsCount={metrics.unresolvedConflicts.count}
             availableRoomsCount={metrics.availableRooms.available}

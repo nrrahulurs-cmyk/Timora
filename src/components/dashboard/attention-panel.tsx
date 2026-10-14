@@ -2,16 +2,13 @@
 
 import * as React from "react";
 import {
-  AlertTriangle,
-  ArrowRight,
   Clock,
-  ArrowLeftRight,
-  CalendarPlus,
-  Users2,
-  CheckCircle2,
   ChevronRight,
   MapPin,
   ShieldAlert,
+  ArrowRight,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,10 +40,10 @@ export function AttentionPanel({
 
   return (
     <Card className="flex flex-col justify-between bg-white border border-slate-200/80 shadow-xs rounded-3xl overflow-hidden">
-      {/* ── Stitch-Style Card Header ── */}
+      {/* ── Card Header ── */}
       <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/50">
         <div className="flex items-center gap-2">
-          <h2 className="text-[14px] font-semibold text-slate-900 tracking-[-0.01em]">
+          <h2 className="text-[14px] font-semibold text-slate-900 tracking-tight">
             Requires Attention
           </h2>
           <span className="bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-2xs">
@@ -70,6 +67,11 @@ export function AttentionPanel({
         ) : (
           displayedItems.map((item) => {
             const isCritical = item.severity === "critical";
+            const isWarning = item.severity === "warning";
+            const isNoAlternative =
+              item.id === "ATT-006" ||
+              item.description.toLowerCase().includes("zero on-campus") ||
+              item.description.toLowerCase().includes("lockdown");
 
             return (
               <div
@@ -77,36 +79,49 @@ export function AttentionPanel({
                 onClick={() => onSelectItem(item)}
                 className={`group p-3 rounded-2xl border transition-all cursor-pointer space-y-1.5 ${
                   isCritical
-                    ? "border-rose-200/80 bg-rose-50/30 hover:border-rose-300 hover:bg-rose-50/60 shadow-2xs"
+                    ? "border-rose-200/90 bg-rose-50/25 hover:border-rose-300 hover:bg-rose-50/50 shadow-2xs"
+                    : isWarning
+                    ? "border-amber-200/80 bg-amber-50/25 hover:border-amber-300 hover:bg-amber-50/50 shadow-2xs"
                     : "border-slate-200/80 bg-slate-50/30 hover:border-blue-300 hover:bg-white shadow-2xs"
                 }`}
               >
-                {/* Row Header: Severity Dot + Title + Action Pill */}
+                {/* Row Header: Severity Dot + Title + Severity Pill */}
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <span
                       className={`w-2 h-2 rounded-full shrink-0 ${
-                        isCritical ? "bg-rose-500" : "bg-amber-500"
+                        isCritical
+                          ? "bg-rose-500"
+                          : isWarning
+                          ? "bg-amber-500"
+                          : "bg-blue-500"
                       }`}
                     />
-                    <span className="font-semibold text-xs text-slate-900 truncate group-hover:text-[rgb(var(--color-primary))] transition-colors">
+                    <span className="font-semibold text-xs text-slate-900 truncate group-hover:text-blue-600 transition-colors">
                       {item.title}
                     </span>
                   </div>
 
-                  <Badge
-                    variant={isCritical ? "error" : "warning"}
-                    size="sm"
-                    className="text-[9.5px] shrink-0 font-medium tracking-wider uppercase py-0.5 px-2 rounded-full"
-                  >
-                    {item.severity}
-                  </Badge>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {isNoAlternative && (
+                      <span className="text-[9px] font-semibold text-rose-700 bg-rose-100/90 px-1.5 py-0.5 rounded border border-rose-200">
+                        NO ALTERNATIVE
+                      </span>
+                    )}
+                    <Badge
+                      variant={isCritical ? "error" : isWarning ? "warning" : "default"}
+                      size="sm"
+                      className="text-[9.5px] font-semibold tracking-wider uppercase py-0.5 px-2 rounded-full"
+                    >
+                      {item.severity}
+                    </Badge>
+                  </div>
                 </div>
 
                 {/* Resource & Time Context */}
                 <div className="flex items-center gap-3 text-[10.5px] text-slate-500 pl-4 font-mono">
                   {item.location && (
-                    <span className="flex items-center gap-1 truncate text-slate-700 font-semibold">
+                    <span className="flex items-center gap-1 truncate text-slate-700 font-medium">
                       <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
                       {item.location}
                     </span>
@@ -117,15 +132,22 @@ export function AttentionPanel({
                   </span>
                 </div>
 
-                {/* One-Line Concise Description */}
+                {/* Concise Explanation */}
                 <p className="text-[11px] text-slate-600 line-clamp-1 leading-snug pl-4">
                   {item.description}
                 </p>
 
                 {/* Footer Action Link */}
-                <div className="flex items-center justify-end text-[10.5px] pt-1 pl-4">
-                  <span className="text-[rgb(var(--color-primary))] font-semibold flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
-                    {item.actionLabel}
+                <div className="flex items-center justify-between text-[10.5px] pt-1 pl-4">
+                  <span className="text-[10px] text-slate-400">
+                    {isNoAlternative ? "Requires Dean escalation" : "Action required"}
+                  </span>
+                  <span
+                    className={`font-semibold flex items-center gap-0.5 transition-transform group-hover:translate-x-0.5 ${
+                      isNoAlternative ? "text-rose-600" : "text-blue-600"
+                    }`}
+                  >
+                    {isNoAlternative ? "Administrative Review" : item.actionLabel}
                     <ChevronRight className="h-3 w-3" />
                   </span>
                 </div>
@@ -138,7 +160,7 @@ export function AttentionPanel({
           <button
             type="button"
             onClick={() => setExpanded(!expanded)}
-            className="w-full text-center py-1 text-[11px] font-medium text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+            className="w-full text-center py-1.5 text-[11px] font-semibold text-slate-600 hover:text-slate-900 transition-colors cursor-pointer bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200/60"
           >
             {expanded
               ? "▲ Show Fewer Items"
@@ -152,7 +174,7 @@ export function AttentionPanel({
           variant="outline"
           size="sm"
           onClick={onViewAll}
-          className="w-full text-xs justify-center gap-1.5 border-slate-200 text-slate-700 hover:bg-white h-8 rounded-full shadow-2xs"
+          className="w-full text-xs justify-center gap-1.5 border-slate-200 text-slate-700 hover:bg-white h-8 rounded-full shadow-2xs font-semibold cursor-pointer"
         >
           <span>Complete Resolution Queue ({sortedItems.length})</span>
           <ArrowRight className="h-3.5 w-3.5 text-slate-500" />

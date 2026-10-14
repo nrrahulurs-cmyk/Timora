@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 export interface WorkspaceHeaderProps {
   section?: string;
   title: string;
+  subtitle?: React.ReactNode;
   badge?: React.ReactNode;
   actions?: React.ReactNode;
   onSearchClick?: () => void;
@@ -16,6 +17,7 @@ export interface WorkspaceHeaderProps {
 export function WorkspaceHeader({
   section = "Weekly Schedule",
   title,
+  subtitle,
   badge,
   actions,
   onSearchClick,
@@ -40,6 +42,11 @@ export function WorkspaceHeader({
           </h1>
           {badge}
         </div>
+        {subtitle && (
+          <div className="mt-1 text-xs text-slate-500 font-medium leading-relaxed">
+            {subtitle}
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

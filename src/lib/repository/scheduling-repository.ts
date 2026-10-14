@@ -1207,8 +1207,14 @@ export class LocalDemoSchedulingRepository implements SchedulingRepository {
 
   async getActivityLog(filter: string = "All"): Promise<ActivityItem[]> {
     if (filter === "All") return this.activityLog;
+    const f = filter.toLowerCase();
+    if (f === "conflict" || f === "automated" || f === "solver") {
+      return this.activityLog.filter(
+        (item) => item.category === "conflict" || item.category === "automated"
+      );
+    }
     return this.activityLog.filter(
-      (item) => item.category.toLowerCase() === filter.toLowerCase()
+      (item) => item.category.toLowerCase() === f
     );
   }
 
