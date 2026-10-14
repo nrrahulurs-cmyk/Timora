@@ -3,9 +3,9 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { navigationConfig, type NavGroup, type NavItem } from "@/config/navigation";
+import { useAuth } from "@/lib/auth/auth-context";
 
 interface SidebarProps {
   className?: string;
@@ -14,108 +14,123 @@ interface SidebarProps {
 
 export function Sidebar({ className, onNavigate }: SidebarProps) {
   const pathname = usePathname();
+  const { user } = useAuth();
+
+  const userInitials = React.useMemo(() => {
+    if (!user?.fullName) return "MV";
+    return user.fullName
+      .split(" ")
+      .map((n) => n[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
+  }, [user]);
 
   return (
     <aside
       className={cn(
-        "flex flex-col h-full w-[250px] bg-white border-r border-[rgb(var(--color-border-default))] select-none shrink-0",
+        "flex flex-col h-full w-[240px] xl:w-[256px] bg-white select-none shrink-0 justify-between p-4 xl:p-5",
         className
       )}
     >
-      {/* ── Brand Header (Timora Wordmark) ──────── */}
-      <div className="h-[60px] flex items-center px-5 border-b border-[rgb(var(--color-border-default))] gap-3">
-        <div className="h-8 w-8 rounded-lg bg-[rgb(var(--color-primary))] flex items-center justify-center text-white shadow-xs">
-          <Zap className="h-4.5 w-4.5 fill-current" />
+      <div className="space-y-6">
+        {/* ── Stitch Brand Header ─────────────────────── */}
+        <div className="flex items-center justify-between px-1.5 pt-1">
+          <Link href="/" onClick={onNavigate} className="flex items-center gap-3 group">
+            <div className="w-8.5 h-8.5 rounded-2xl bg-slate-900 flex items-center justify-center text-white shadow-xs group-hover:scale-105 transition-transform">
+              <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" fill="currentColor" r="2.8" />
+                <path d="M12 3v2.5m0 13V21m9-9h-2.5M5.5 12H3" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" />
+              </svg>
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-lg font-bold tracking-tight text-slate-900">timora</span>
+              <span className="text-[10px] font-semibold text-slate-400">os</span>
+            </div>
+          </Link>
         </div>
-        <div className="flex flex-col">
-          <div className="flex items-center gap-1.5">
-            <span className="font-extrabold text-[15px] tracking-tight text-slate-900 leading-tight">
-              Timora
-            </span>
-            <span className="font-mono text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-blue-50 text-[#0066cc] border border-blue-200/60">
-              OS
-            </span>
-          </div>
-          <span className="text-[10px] text-slate-400 tracking-wider uppercase font-medium">
-            Academic Operations
-          </span>
-        </div>
-      </div>
 
-      {/* ── Grouped Navigation ───────────────────── */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5 scrollbar-thin">
-        {navigationConfig.map((group: NavGroup) => (
-          <div key={group.title} className="space-y-1">
-            <h4 className="px-2.5 text-[10px] font-semibold text-[rgb(var(--color-text-tertiary))] uppercase tracking-wider mb-1.5">
-              {group.title}
-            </h4>
-            <div className="space-y-0.5">
-              {group.items.map((item: NavItem) => {
-                const Icon = item.icon;
-                const isActive =
-                  item.href === "/"
-                    ? pathname === "/"
-                    : pathname === item.href || pathname.startsWith(`${item.href}/`);
+        {/* ── Grouped Navigation ───────────────────── */}
+        <nav className="space-y-5">
+          {navigationConfig.map((group: NavGroup) => (
+            <div key={group.title}>
+              <span className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">
+                {group.title}
+              </span>
+              <ul className="space-y-1">
+                {group.items.map((item: NavItem) => {
+                  const Icon = item.icon;
+                  const isActive =
+                    item.href === "/"
+                      ? pathname === "/"
+                      : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={onNavigate}
-                    className={cn(
-                      "flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-md)] text-xs font-medium transition-colors",
-                      isActive
-                        ? "bg-[rgb(var(--color-primary-light))] text-[rgb(var(--color-primary))] font-semibold"
-                        : "text-[rgb(var(--color-text-body))] hover:bg-slate-100 hover:text-[rgb(var(--color-text-heading))]"
-                    )}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <Icon
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        onClick={onNavigate}
                         className={cn(
-                          "h-4 w-4 shrink-0 transition-colors",
+                          "flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs transition-all duration-150",
                           isActive
-                            ? "text-[rgb(var(--color-primary))]"
-                            : "text-[rgb(var(--color-text-secondary))]"
-                        )}
-                      />
-                      <span className="truncate">{item.label}</span>
-                    </div>
-
-                    {item.badge !== undefined && (
-                      <span
-                        className={cn(
-                          "px-1.5 py-0.2 text-[10px] font-semibold rounded-full min-w-4 text-center",
-                          item.badgeVariant === "error"
-                            ? "bg-red-100 text-red-700"
-                            : item.badgeVariant === "warning"
-                            ? "bg-amber-100 text-amber-800"
-                            : isActive
-                            ? "bg-[rgb(var(--color-primary))] text-white"
-                            : "bg-slate-100 text-slate-700"
+                            ? "bg-white shadow-card-soft border border-slate-200/80 text-slate-900 font-semibold"
+                            : "text-slate-500 hover:text-slate-900 hover:bg-slate-50/80 font-medium"
                         )}
                       >
-                        {item.badge}
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </nav>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Icon
+                            className={cn(
+                              "w-4 h-4 shrink-0 transition-colors",
+                              isActive ? "text-[rgb(var(--color-primary))]" : "text-slate-400"
+                            )}
+                          />
+                          <span className="truncate">{item.label}</span>
+                        </div>
 
-      {/* ── Sidebar Footer / Health Monitor ──────── */}
-      <div className="p-3 border-t border-[rgb(var(--color-border-default))] bg-slate-50/70">
-        <div className="flex items-center justify-between text-xs text-[rgb(var(--color-text-secondary))] px-2 py-1">
-          <div className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[11px] font-medium text-slate-700">Solver Live</span>
+                        {item.badge !== undefined ? (
+                          <span
+                            className={cn(
+                              "px-1.5 py-0.5 text-[10px] font-bold rounded-full min-w-4 text-center leading-none",
+                              item.badgeVariant === "error"
+                                ? "bg-rose-50 text-rose-500"
+                                : item.badgeVariant === "warning"
+                                ? "bg-amber-50 text-amber-700"
+                                : isActive
+                                ? "bg-blue-50 text-blue-600"
+                                : "bg-slate-100 text-slate-600"
+                            )}
+                          >
+                            {item.badge}
+                          </span>
+                        ) : isActive ? (
+                          <span className="w-1.5 h-1.5 rounded-full bg-[rgb(var(--color-primary))]" />
+                        ) : null}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </nav>
+      </div>
+
+      {/* ── Stitch Profile Footer ────────────────────── */}
+      <div className="pt-4 border-t border-slate-100 flex items-center justify-between px-2">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200/60 flex items-center justify-center font-bold text-xs text-slate-700">
+            {userInitials}
           </div>
-          <span className="text-[10px] text-slate-400 font-mono">
-            Timora v2.4
-          </span>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-slate-800 leading-none truncate max-w-[120px]">
+              {user?.fullName || "Marcus Vance"}
+            </p>
+            <p className="text-[11px] text-slate-400 mt-1 capitalize truncate max-w-[120px]">
+              {user?.role ? `${user.role} role` : "Dean of Academics"}
+            </p>
+          </div>
         </div>
+        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="System Operational" />
       </div>
     </aside>
   );

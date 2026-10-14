@@ -69,31 +69,38 @@ export function AppShell({ children }: AppShellProps) {
   );
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[rgb(var(--color-bg-page))] font-sans antialiased text-[rgb(var(--color-text-body))]">
-      {/* ── Desktop Sidebar ──────────────────────── */}
-      <div className="hidden lg:flex shrink-0">
-        <Sidebar />
-      </div>
+    <div className="relative flex h-screen w-screen items-center justify-center overflow-hidden bg-[rgb(var(--color-bg-page))] font-sans antialiased text-[rgb(var(--color-text-body))] p-0 lg:p-3 xl:p-5">
+      {/* ── Ambient Radial Glows (Google Stitch Architecture) ─────── */}
+      <div aria-hidden="true" className="bg-blob-1" />
+      <div aria-hidden="true" className="bg-blob-2" />
 
-      {/* ── Mobile Sidebar Drawer ────────────────── */}
-      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-        <SheetContent side="left" className="p-0 w-[260px] bg-white border-r">
-          <Sidebar onNavigate={() => setMobileMenuOpen(false)} />
-        </SheetContent>
-      </Sheet>
+      {/* ── Master Floating Application Window ───────────────────── */}
+      <div className="relative z-10 flex h-full w-full max-w-[1560px] overflow-hidden rounded-none lg:rounded-[32px] xl:rounded-[36px] bg-white/95 border-0 lg:border border-white/90 shadow-none lg:shadow-app-window backdrop-blur-md">
+        {/* ── Desktop Sidebar ──────────────────────── */}
+        <div className="hidden lg:flex shrink-0 border-r border-slate-100/90 bg-white">
+          <Sidebar />
+        </div>
 
-      {/* ── Main Content Area ────────────────────── */}
-      <div className="flex flex-col flex-1 min-w-0 h-full overflow-hidden">
-        <Topbar
-          onOpenMobileMenu={() => setMobileMenuOpen(true)}
-          onSearchClick={() => setSearchOpen(true)}
-        />
+        {/* ── Mobile Sidebar Drawer ────────────────── */}
+        <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+          <SheetContent side="left" className="p-0 w-[260px] bg-white border-r">
+            <Sidebar onNavigate={() => setMobileMenuOpen(false)} />
+          </SheetContent>
+        </Sheet>
 
-        <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-7 sm:py-7 scrollbar-thin">
-          <div className="max-w-[1400px] mx-auto w-full">
-            {children}
-          </div>
-        </main>
+        {/* ── Main Workspace ───────────────────────── */}
+        <div className="flex flex-col flex-1 min-w-0 h-full overflow-hidden bg-slate-50/40">
+          <Topbar
+            onOpenMobileMenu={() => setMobileMenuOpen(true)}
+            onSearchClick={() => setSearchOpen(true)}
+          />
+
+          <main className="flex-1 overflow-y-auto px-4 py-5 lg:px-6 lg:py-6 scrollbar-thin">
+            <div className="max-w-[1440px] mx-auto w-full">
+              {children}
+            </div>
+          </main>
+        </div>
       </div>
 
       {/* ── Global Command Search Modal ─────────── */}

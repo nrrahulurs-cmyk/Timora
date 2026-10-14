@@ -59,13 +59,13 @@ export function Topbar({ onOpenMobileMenu, onSearchClick }: TopbarProps) {
   const isSupabaseLive = activeDataSource === "supabase";
 
   return (
-    <header className="h-[60px] w-full bg-white border-b border-[rgb(var(--color-border-default))] flex items-center justify-between px-4 sm:px-6 z-20 shrink-0">
+    <header className="h-[60px] w-full bg-white/90 border-b border-slate-100/90 flex items-center justify-between px-4 sm:px-6 z-20 shrink-0">
       {/* ── Left: Mobile Toggle & Global Search ─── */}
       <div className="flex items-center gap-3 flex-1 max-w-md">
         <Button
           variant="ghost"
           size="icon-sm"
-          className="lg:hidden text-[rgb(var(--color-text-secondary))]"
+          className="lg:hidden text-slate-500 rounded-full hover:bg-slate-100"
           onClick={onOpenMobileMenu}
           aria-label="Open navigation menu"
         >
@@ -75,11 +75,11 @@ export function Topbar({ onOpenMobileMenu, onSearchClick }: TopbarProps) {
         <div className="relative w-full cursor-pointer" onClick={onSearchClick}>
           <Input
             placeholder="Search classes, rooms, faculty... (⌘K)"
-            leftIcon={<Search className="h-4 w-4" />}
-            className="h-8.5 bg-slate-50/80 border-slate-200 text-xs placeholder:text-slate-400 focus:bg-white transition-all w-full cursor-pointer"
+            leftIcon={<Search className="h-4 w-4 text-slate-400" />}
+            className="h-8.5 bg-slate-50 border-slate-200/80 rounded-full text-xs placeholder:text-slate-400 focus:bg-white transition-all w-full cursor-pointer shadow-2xs"
             readOnly
           />
-          <kbd className="hidden sm:inline-flex absolute right-2.5 top-2 pointer-events-none items-center gap-0.5 rounded border border-slate-200 bg-white px-1.5 py-0.25 font-mono text-[10px] text-slate-400">
+          <kbd className="hidden sm:inline-flex absolute right-2.5 top-2 pointer-events-none items-center gap-0.5 rounded-full border border-slate-200 bg-white px-2 py-0.25 font-mono text-[10px] text-slate-400 shadow-2xs">
             ⌘K
           </kbd>
         </div>
@@ -92,10 +92,10 @@ export function Topbar({ onOpenMobileMenu, onSearchClick }: TopbarProps) {
           <Tooltip>
             <TooltipTrigger asChild>
               <div
-                className={`hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border cursor-default transition-all ${
+                className={`hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium border cursor-default transition-all ${
                   isSupabaseLive
-                    ? "bg-emerald-50/90 border-emerald-200 text-emerald-800"
-                    : "bg-amber-50/90 border-amber-200 text-amber-800"
+                    ? "bg-emerald-50 border-emerald-200/80 text-emerald-800"
+                    : "bg-amber-50 border-amber-200/80 text-amber-800"
                 }`}
               >
                 <span
@@ -104,7 +104,7 @@ export function Topbar({ onOpenMobileMenu, onSearchClick }: TopbarProps) {
                   }`}
                 />
                 <Database className="h-3 w-3 opacity-70" />
-                <span>{isSupabaseLive ? "Supabase Live (Postgres 17)" : "Demo Sandbox Mode"}</span>
+                <span>{isSupabaseLive ? "Supabase Live (Postgres 17)" : "Demo Mode"}</span>
               </div>
             </TooltipTrigger>
             <TooltipContent>
