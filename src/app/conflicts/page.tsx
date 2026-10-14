@@ -150,80 +150,80 @@ export default function ConflictsPage() {
         }
       />
 
-      {/* KPI Metric Summary Row (Stitch-Style) */}
+      {/* KPI Metric Summary Row (Glassmorphic Minimalism) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <Card className="p-4 flex flex-col justify-between bg-white border border-slate-200/80 shadow-2xs hover:shadow-card-soft rounded-2xl min-h-[116px] transition-all duration-200">
+        <Card className="p-4.5 flex flex-col justify-between bg-gradient-to-br from-rose-50/30 via-white/95 to-white/90 backdrop-blur-xl border border-slate-200/70 shadow-xs hover:shadow-md rounded-3xl min-h-[120px] transition-all duration-200 hover:-translate-y-0.5">
           <div className="flex items-start justify-between">
             <span className="text-[26px] leading-none font-bold text-slate-900 tracking-tight font-sans">
               {conflicts.length}
             </span>
-            <div className="w-7 h-7 rounded-full border border-rose-200/80 bg-rose-50 flex items-center justify-center text-rose-600 shrink-0">
-              <AlertTriangle className="h-3.5 w-3.5" />
+            <div className="w-8 h-8 rounded-2xl border border-rose-100 bg-rose-50/50 flex items-center justify-center text-rose-600 shrink-0 shadow-2xs">
+              <AlertTriangle className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-2.5">
+          <div className="mt-3">
             <div className="text-xs font-semibold text-slate-600 tracking-tight">
               Active Conflicts
             </div>
-            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 text-[10.5px] font-semibold mt-1 border border-rose-200/60 shadow-2xs">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-50/80 text-rose-700 text-[10.5px] font-semibold mt-1 border border-rose-200/60 shadow-2xs">
               <span>{criticalCount} Critical • {conflicts.length - criticalCount} Warning</span>
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 flex flex-col justify-between bg-white border border-slate-200/80 shadow-2xs hover:shadow-card-soft rounded-2xl min-h-[116px] transition-all duration-200">
+        <Card className="p-4.5 flex flex-col justify-between bg-gradient-to-br from-emerald-50/30 via-white/95 to-white/90 backdrop-blur-xl border border-slate-200/70 shadow-xs hover:shadow-md rounded-3xl min-h-[120px] transition-all duration-200 hover:-translate-y-0.5">
           <div className="flex items-start justify-between">
             <span className="text-[26px] leading-none font-bold text-emerald-600 tracking-tight font-sans">
               {autoResolvableCount}
             </span>
-            <div className="w-7 h-7 rounded-full border border-emerald-200/80 bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
-              <Sparkles className="h-3.5 w-3.5" />
+            <div className="w-8 h-8 rounded-2xl border border-emerald-100 bg-emerald-50/50 flex items-center justify-center text-emerald-600 shrink-0 shadow-2xs">
+              <Sparkles className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-2.5">
+          <div className="mt-3">
             <div className="text-xs font-semibold text-slate-600 tracking-tight">
               Ripple-Resolvable
             </div>
-            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10.5px] font-semibold mt-1 border border-emerald-200/50 shadow-2xs">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50/80 text-emerald-700 text-[10.5px] font-semibold mt-1 border border-emerald-200/50 shadow-2xs">
               <span>0-cascade alternatives ready</span>
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 flex flex-col justify-between bg-white border border-slate-200/80 shadow-2xs hover:shadow-card-soft rounded-2xl min-h-[116px] transition-all duration-200">
+        <Card className="p-4.5 flex flex-col justify-between bg-gradient-to-br from-amber-50/30 via-white/95 to-white/90 backdrop-blur-xl border border-slate-200/70 shadow-xs hover:shadow-md rounded-3xl min-h-[120px] transition-all duration-200 hover:-translate-y-0.5">
           <div className="flex items-start justify-between">
             <span className="text-[26px] leading-none font-bold text-amber-600 tracking-tight font-sans">
               {noAlternativeCount}
             </span>
-            <div className="w-7 h-7 rounded-full border border-amber-200/80 bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
-              <ShieldAlert className="h-3.5 w-3.5" />
+            <div className="w-8 h-8 rounded-2xl border border-amber-100 bg-amber-50/50 flex items-center justify-center text-amber-600 shrink-0 shadow-2xs">
+              <ShieldAlert className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-2.5">
+          <div className="mt-3">
             <div className="text-xs font-semibold text-slate-600 tracking-tight">
               Escalation Required
             </div>
-            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[10.5px] font-semibold mt-1 border border-amber-200/60 shadow-2xs">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50/80 text-amber-700 text-[10.5px] font-semibold mt-1 border border-amber-200/60 shadow-2xs">
               <span>Zero feasible campus substitutes</span>
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 flex flex-col justify-between bg-white border border-slate-200/80 shadow-2xs hover:shadow-card-soft rounded-2xl min-h-[116px] transition-all duration-200">
+        <Card className="p-4.5 flex flex-col justify-between bg-gradient-to-br from-indigo-50/30 via-white/95 to-white/90 backdrop-blur-xl border border-slate-200/70 shadow-xs hover:shadow-md rounded-3xl min-h-[120px] transition-all duration-200 hover:-translate-y-0.5">
           <div className="flex items-start justify-between">
             <div className="text-sm font-bold text-slate-800 flex items-center gap-1.5 mt-0.5">
               <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
               <span>Deterministic [start, end)</span>
             </div>
-            <div className="w-7 h-7 rounded-full border border-slate-200/80 bg-slate-50 flex items-center justify-center text-slate-500 shrink-0">
-              <Zap className="h-3.5 w-3.5" />
+            <div className="w-8 h-8 rounded-2xl border border-indigo-100 bg-indigo-50/50 flex items-center justify-center text-indigo-600 shrink-0 shadow-2xs">
+              <Zap className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-2.5">
+          <div className="mt-3">
             <div className="text-xs font-semibold text-slate-600 tracking-tight">
               Constraint Engine Mode
             </div>
-            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10.5px] font-semibold mt-1 border border-slate-200/60 shadow-2xs">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100/90 text-slate-600 text-[10.5px] font-semibold mt-1 border border-slate-200/60 shadow-2xs">
               <span>Strict hard separation • 0 silent relaxation</span>
             </div>
           </div>

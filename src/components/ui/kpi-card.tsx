@@ -34,8 +34,8 @@ export function KpiCard({
   return (
     <Card
       className={cn(
-        "p-4 flex flex-col justify-between bg-white border border-slate-200/80 shadow-2xs hover:shadow-card-soft rounded-2xl min-h-[116px] hover:-translate-y-0.5 transition-all duration-200 relative overflow-hidden",
-        alert && "border-amber-300/80 bg-amber-50/20",
+        "p-4.5 flex flex-col justify-between bg-gradient-to-br from-white/95 via-slate-50/40 to-white/90 backdrop-blur-xl border border-slate-200/70 shadow-xs hover:shadow-md rounded-3xl min-h-[120px] hover:-translate-y-0.5 transition-all duration-200 relative overflow-hidden",
+        alert && "border-amber-300/80 bg-gradient-to-br from-amber-50/40 via-white/90 to-white/90",
         className
       )}
     >
@@ -55,11 +55,11 @@ export function KpiCard({
         {Icon && (
           <div
             className={cn(
-              "w-7 h-7 rounded-full flex items-center justify-center shrink-0 border",
+              "w-8 h-8 rounded-2xl flex items-center justify-center shrink-0 border shadow-2xs",
               iconBg
             )}
           >
-            <Icon className={cn("h-3.5 w-3.5", iconColor)} />
+            <Icon className={cn("h-4 w-4", iconColor)} />
           </div>
         )}
       </div>

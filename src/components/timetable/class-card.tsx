@@ -75,22 +75,22 @@ export function ClassCard({
   const colorTheme = React.useMemo(() => {
     if (isConflicted) {
       return {
-        bg: "bg-rose-50/80 hover:bg-rose-50",
-        border: "border-rose-200/80 border-l-[3.5px] border-l-rose-500",
-        textTitle: "text-rose-900",
-        textSub: "text-rose-600",
+        bg: "bg-gradient-to-br from-rose-50/95 via-rose-50/70 to-white/90 backdrop-blur-xs hover:from-rose-50 hover:to-rose-100/50",
+        border: "border-rose-200/90 border-l-[3.5px] border-l-rose-500",
+        textTitle: "text-rose-950",
+        textSub: "text-rose-700",
         dot: "bg-rose-500",
-        badge: "bg-rose-100 text-rose-700",
+        badge: "bg-rose-100/90 text-rose-700 border border-rose-200/60",
       };
     }
     if (isStaged) {
       return {
-        bg: "bg-amber-50/80",
+        bg: "bg-gradient-to-br from-amber-50/95 via-amber-50/70 to-white/90 backdrop-blur-xs",
         border: "border-amber-300 border-dashed border-l-[3.5px] border-l-amber-500",
         textTitle: "text-amber-950",
-        textSub: "text-amber-700",
+        textSub: "text-amber-800",
         dot: "bg-amber-500",
-        badge: "bg-amber-100 text-amber-800",
+        badge: "bg-amber-100/90 text-amber-800 border border-amber-200/60",
       };
     }
     const code = subject?.code?.toUpperCase() || "";
@@ -98,51 +98,51 @@ export function ClassCard({
 
     if (code.includes("MATH") || code.includes("ALG") || type === "Lecture") {
       return {
-        bg: "bg-[#E8F8F0]/80 hover:bg-[#E8F8F0]",
+        bg: "bg-gradient-to-br from-[#E8F8F0]/95 via-[#E8F8F0]/70 to-white/90 backdrop-blur-xs hover:from-[#E8F8F0] hover:to-[#DCF5E8]",
         border: "border-[#D1F2E2] border-l-[3.5px] border-l-emerald-500",
-        textTitle: "text-emerald-900",
+        textTitle: "text-emerald-950",
         textSub: "text-emerald-700",
         dot: "bg-emerald-500",
-        badge: "bg-emerald-100/70 text-emerald-700",
+        badge: "bg-white/90 text-emerald-800 border border-emerald-200/60",
       };
     }
     if (code.includes("OS") || code.includes("CS") || code.includes("SOFT")) {
       return {
-        bg: "bg-[#F0EEFF]/80 hover:bg-[#F0EEFF]",
+        bg: "bg-gradient-to-br from-[#F0EEFF]/95 via-[#F0EEFF]/70 to-white/90 backdrop-blur-xs hover:from-[#F0EEFF] hover:to-[#E5E1FF]",
         border: "border-[#E1DEFF] border-l-[3.5px] border-l-indigo-500",
-        textTitle: "text-[#312E81]",
-        textSub: "text-[#4F46E5]",
+        textTitle: "text-[#1E1B4B]",
+        textSub: "text-[#4338CA]",
         dot: "bg-[#5B4DF5]",
-        badge: "bg-white/80 text-[#4F46E5]",
+        badge: "bg-white/90 text-[#4338CA] border border-indigo-200/60",
       };
     }
     if (code.includes("DB") || code.includes("NET") || code.includes("ARCH")) {
       return {
-        bg: "bg-[#EBF5FF]/80 hover:bg-[#EBF5FF]",
+        bg: "bg-gradient-to-br from-[#EBF5FF]/95 via-[#EBF5FF]/70 to-white/90 backdrop-blur-xs hover:from-[#EBF5FF] hover:to-[#DCEDFF]",
         border: "border-[#D6EBFF] border-l-[3.5px] border-l-sky-500",
-        textTitle: "text-sky-900",
+        textTitle: "text-sky-950",
         textSub: "text-sky-700",
         dot: "bg-sky-500",
-        badge: "bg-white/80 text-sky-700",
+        badge: "bg-white/90 text-sky-800 border border-sky-200/60",
       };
     }
     if (code.includes("AI") || code.includes("ML") || type === "Laboratory") {
       return {
-        bg: "bg-[#FEF8E7]/80 hover:bg-[#FEF8E7]",
+        bg: "bg-gradient-to-br from-[#FEF8E7]/95 via-[#FEF8E7]/70 to-white/90 backdrop-blur-xs hover:from-[#FEF8E7] hover:to-[#FDF0CC]",
         border: "border-[#FDEFC9] border-l-[3.5px] border-l-amber-500",
         textTitle: "text-amber-950",
         textSub: "text-amber-800",
         dot: "bg-amber-500",
-        badge: "bg-amber-100 text-amber-800",
+        badge: "bg-white/90 text-amber-800 border border-amber-200/60",
       };
     }
     return {
-      bg: "bg-slate-50/80 hover:bg-slate-50",
+      bg: "bg-gradient-to-br from-slate-50/95 via-slate-50/70 to-white/90 backdrop-blur-xs hover:bg-slate-100/70",
       border: "border-slate-200/80 border-l-[3.5px] border-l-slate-400",
       textTitle: "text-slate-900",
       textSub: "text-slate-600",
       dot: "bg-slate-400",
-      badge: "bg-white text-slate-600",
+      badge: "bg-white/90 text-slate-700 border border-slate-200/60",
     };
   }, [isConflicted, isStaged, subject?.code, subject?.type]);
 
@@ -157,10 +157,10 @@ export function ClassCard({
           onClick?.();
         }
       }}
-      className={`group relative rounded-2xl p-3 text-left transition-all duration-150 cursor-pointer select-none border flex flex-col justify-between min-h-[105px] ${
+      className={`group relative rounded-2xl p-3 text-left transition-all duration-200 cursor-pointer select-none border flex flex-col justify-between min-h-[105px] shadow-2xs ${
         isSelected
-          ? "ring-2 ring-[rgb(var(--color-primary))] shadow-card-soft"
-          : "hover:shadow-card-soft"
+          ? "ring-2 ring-primary-coral shadow-md -translate-y-0.5"
+          : "hover:shadow-md hover:-translate-y-0.5"
       } ${colorTheme.bg} ${colorTheme.border}`}
     >
       {/* ── Top Block: Subject Title, Code & Room ────────────────────────── */}

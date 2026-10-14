@@ -200,45 +200,57 @@ export default function ClassExchangesPage() {
         }
       />
 
-      {/* KPI Cards */}
+      {/* KPI Cards (Glassmorphic Minimalism) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-        <Card className="p-3.5 bg-white border-slate-200 shadow-2xs">
+        <Card className="p-4.5 bg-gradient-to-br from-indigo-50/30 via-white/95 to-white/90 backdrop-blur-xl border border-slate-200/70 shadow-xs hover:shadow-md rounded-3xl min-h-[120px] transition-all duration-200 hover:-translate-y-0.5">
           <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
             Total Swap Proposals
           </span>
-          <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-xl font-bold font-mono text-slate-900">{requests.length}</span>
-            <span className="text-[11px] text-slate-400">Total</span>
+          <div className="flex items-baseline gap-2 mt-2">
+            <span className="text-2xl font-bold font-mono text-slate-900">{requests.length}</span>
+            <span className="text-[11px] text-slate-400 font-medium">Total</span>
+          </div>
+          <div className="mt-2 text-[10.5px] font-semibold text-slate-600 bg-slate-100/90 px-2 py-0.5 rounded-full inline-block border border-slate-200/60 shadow-2xs">
+            Exchange Ledger
           </div>
         </Card>
 
-        <Card className="p-3.5 bg-white border-slate-200 shadow-2xs">
+        <Card className="p-4.5 bg-gradient-to-br from-amber-50/30 via-white/95 to-white/90 backdrop-blur-xl border border-slate-200/70 shadow-xs hover:shadow-md rounded-3xl min-h-[120px] transition-all duration-200 hover:-translate-y-0.5">
           <span className="text-[11px] font-semibold text-amber-700 uppercase tracking-wider block">
             Pending Institutional Review
           </span>
-          <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-xl font-bold font-mono text-amber-600">{pendingCount}</span>
-            <span className="text-[11px] text-amber-700/80">Active</span>
+          <div className="flex items-baseline gap-2 mt-2">
+            <span className="text-2xl font-bold font-mono text-amber-600">{pendingCount}</span>
+            <span className="text-[11px] text-amber-700/80 font-medium">Active</span>
+          </div>
+          <div className="mt-2 text-[10.5px] font-semibold text-amber-700 bg-amber-50/80 px-2 py-0.5 rounded-full inline-block border border-amber-200/60 shadow-2xs">
+            Awaiting Signoff
           </div>
         </Card>
 
-        <Card className="p-3.5 bg-white border-slate-200 shadow-2xs">
+        <Card className="p-4.5 bg-gradient-to-br from-emerald-50/30 via-white/95 to-white/90 backdrop-blur-xl border border-slate-200/70 shadow-xs hover:shadow-md rounded-3xl min-h-[120px] transition-all duration-200 hover:-translate-y-0.5">
           <span className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider block">
             Approved & Committed Swaps
           </span>
-          <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-xl font-bold font-mono text-emerald-600">{approvedCount}</span>
-            <span className="text-[11px] text-emerald-700/80">Synchronized</span>
+          <div className="flex items-baseline gap-2 mt-2">
+            <span className="text-2xl font-bold font-mono text-emerald-600">{approvedCount}</span>
+            <span className="text-[11px] text-emerald-700/80 font-medium">Synchronized</span>
+          </div>
+          <div className="mt-2 text-[10.5px] font-semibold text-emerald-700 bg-emerald-50/80 px-2 py-0.5 rounded-full inline-block border border-emerald-200/60 shadow-2xs">
+            Database Locked
           </div>
         </Card>
 
-        <Card className="p-3.5 bg-white border-slate-200 shadow-2xs">
+        <Card className="p-4.5 bg-gradient-to-br from-blue-50/30 via-white/95 to-white/90 backdrop-blur-xl border border-slate-200/70 shadow-xs hover:shadow-md rounded-3xl min-h-[120px] transition-all duration-200 hover:-translate-y-0.5">
           <span className="text-[11px] font-semibold text-blue-700 uppercase tracking-wider block">
             Peer Consensus Rate
           </span>
-          <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-xl font-bold font-mono text-blue-600">100%</span>
-            <span className="text-[11px] text-blue-700/80">Verified</span>
+          <div className="flex items-baseline gap-2 mt-2">
+            <span className="text-2xl font-bold font-mono text-blue-600">100%</span>
+            <span className="text-[11px] text-blue-700/80 font-medium">Verified</span>
+          </div>
+          <div className="mt-2 text-[10.5px] font-semibold text-blue-700 bg-blue-50/80 px-2 py-0.5 rounded-full inline-block border border-blue-200/60 shadow-2xs">
+            Zero Discrepancies
           </div>
         </Card>
       </div>

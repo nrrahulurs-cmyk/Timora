@@ -42,7 +42,7 @@ export function TimoLauncher({
       >
         {/* Character Avatar */}
         <div className="relative">
-          <TimoAvatar size="sm" state={effectiveState} />
+          <TimoAvatar size="sm" state={effectiveState} showCompanionDots={true} />
           {/* Status Dot */}
           <span className="absolute -bottom-0.5 -right-0.5 flex h-2 w-2">
             <span

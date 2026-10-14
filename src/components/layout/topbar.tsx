@@ -59,7 +59,7 @@ export function Topbar({ onOpenMobileMenu, onSearchClick }: TopbarProps) {
   const isSupabaseLive = activeDataSource === "supabase";
 
   return (
-    <header className="h-[60px] w-full bg-white/90 border-b border-slate-100/90 flex items-center justify-between px-4 sm:px-6 z-20 shrink-0">
+    <header className="h-[60px] w-full bg-white/80 backdrop-blur-xl border-b border-slate-200/60 flex items-center justify-between px-4 sm:px-6 z-20 shrink-0">
       {/* ── Left: Mobile Toggle & Global Search ─── */}
       <div className="flex items-center gap-3 flex-1 max-w-md">
         <Button

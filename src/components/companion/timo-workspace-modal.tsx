@@ -34,6 +34,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/feedback/use-toast";
 import { TimoAvatar, type TimoState, type TimoGlance } from "./timo-avatar";
+import { TimoMarkdown } from "./timo-markdown";
 import { timoAudio } from "./timo-audio";
 import type { ActionPreviewPayload, ToolExecutionResult } from "@/lib/gemini/tools";
 import type { UserRole } from "@/types/domain";
@@ -137,15 +138,7 @@ export function TimoWorkspaceModal({
   const [copiedMsgId, setCopiedMsgId] = React.useState<string | null>(null);
   const [isCompactDock, setIsCompactDock] = React.useState(false);
 
-  const initialGreeting: AssistantMessage = {
-    id: "initial-msg",
-    role: "assistant",
-    content:
-      "Hello! I am **Timo**, your high-speed academic operations companion. I am powered by Groq LPU sub-100ms inference and connected directly to our deterministic constraint engine, classroom databases, and faculty rosters.\n\nHow can I help coordinate your schedule today?",
-    provider: "groq-ai",
-  };
-
-  const [messages, setMessages] = React.useState<AssistantMessage[]>([initialGreeting]);
+  const [messages, setMessages] = React.useState<AssistantMessage[]>([]);
 
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -453,11 +446,11 @@ export function TimoWorkspaceModal({
 
   const handleResetConversation = () => {
     timoAudio.play("pop");
-    setMessages([initialGreeting]);
+    setMessages([]);
     setTimoState("ready");
   };
 
-  const isOnlyGreeting = messages.length <= 1;
+  const isWelcomeState = messages.length === 0;
 
   const filteredSuggestions = CATEGORIZED_SUGGESTIONS.filter((s) =>
     selectedCategory === "all" ? true : s.category === selectedCategory
@@ -569,9 +562,9 @@ export function TimoWorkspaceModal({
 
         {/* ── Message Thread / Scroll Area ─────────────────────────────────── */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 scrollbar-thin">
-          {/* Welcome State when only initial greeting */}
-          {isOnlyGreeting && (
-            <div className="py-6 px-4 bg-slate-50/70 border border-slate-200/60 rounded-3xl text-center space-y-4">
+          {/* Welcome State when conversation is empty */}
+          {isWelcomeState && (
+            <div className="py-6 px-4 bg-gradient-to-b from-white/95 via-slate-50/70 to-white/90 border border-slate-200/80 backdrop-blur-xl rounded-3xl text-center space-y-4 shadow-xs">
               <div className="flex justify-center relative">
                 <TimoAvatar size="xl" state={timoState} glance={timoGlance} showCompanionDots={true} />
               </div>
@@ -579,7 +572,7 @@ export function TimoWorkspaceModal({
                 <h3 className="text-sm font-bold text-slate-900 tracking-tight flex items-center justify-center gap-1.5">
                   How can I coordinate your academic operations today?
                 </h3>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
+                <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 leading-relaxed">
                   Ask me to search classrooms, resolve timetable clashes, verify faculty workload, or propose ad-hoc review sessions.
                 </p>
               </div>
@@ -622,7 +615,7 @@ export function TimoWorkspaceModal({
                       key={idx}
                       type="button"
                       onClick={() => handleSend(item.query)}
-                      className="p-2.5 rounded-2xl bg-white hover:bg-slate-100/90 border border-slate-200/80 text-left transition text-xs group cursor-pointer flex flex-col justify-between gap-1.5 shadow-xs hover:border-primary-coral/40"
+                      className="p-2.5 rounded-2xl bg-white hover:bg-slate-50/90 border border-slate-200/80 text-left transition-all text-xs group cursor-pointer flex flex-col justify-between gap-1.5 shadow-xs hover:border-primary-coral/40 hover:shadow-sm"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <span className="text-slate-800 group-hover:text-slate-900 font-semibold leading-snug">
@@ -645,7 +638,7 @@ export function TimoWorkspaceModal({
           )}
 
           {/* Active Conversation Messages */}
-          {!isOnlyGreeting &&
+          {!isWelcomeState &&
             messages.map((msg) => {
               const isUser = msg.role === "user";
 
@@ -658,22 +651,26 @@ export function TimoWorkspaceModal({
                 >
                   {!isUser && (
                     <div className="shrink-0 mt-0.5">
-                      <TimoAvatar size="sm" state={msg.isError ? "error" : "ready"} />
+                      <TimoAvatar size="sm" state={msg.isError ? "error" : "ready"} showCompanionDots={true} />
                     </div>
                   )}
 
-                  <div className={`space-y-2.5 max-w-[85%] ${isUser ? "items-end" : "items-start"}`}>
+                  <div className={`space-y-2.5 max-w-[88%] ${isUser ? "items-end" : "items-start"}`}>
                     {/* Message Bubble */}
                     <div
-                      className={`p-3.5 rounded-2xl ${
+                      className={`p-3.5 sm:p-4 rounded-2xl ${
                         isUser
-                          ? "bg-slate-900 text-white rounded-tr-xs shadow-xs"
-                          : "bg-white border border-slate-200/80 text-slate-800 rounded-tl-xs shadow-xs"
+                          ? "bg-slate-900 text-white rounded-tr-xs shadow-md"
+                          : "bg-white/95 backdrop-blur-xl border border-slate-200/80 text-slate-800 rounded-tl-xs shadow-xs"
                       }`}
                     >
-                      <div className="whitespace-pre-line prose prose-xs max-w-none text-inherit leading-relaxed">
-                        {msg.content}
-                      </div>
+                      {isUser ? (
+                        <div className="whitespace-pre-wrap leading-relaxed font-medium">
+                          {msg.content}
+                        </div>
+                      ) : (
+                        <TimoMarkdown content={msg.content} />
+                      )}
 
                       {/* Assistant Response Actions & Provider */}
                       {!isUser && (
@@ -732,9 +729,9 @@ export function TimoWorkspaceModal({
                             return (
                               <div
                                 key={trIdx}
-                                className="bg-white rounded-2xl border border-slate-200/80 p-3 shadow-xs space-y-2 text-xs"
+                                className="bg-gradient-to-br from-indigo-50/30 via-white to-white rounded-2xl border border-indigo-100/70 p-3.5 shadow-xs space-y-2.5 text-xs"
                               >
-                                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                <div className="flex items-center justify-between border-b border-indigo-50 pb-2">
                                   <span className="font-bold text-slate-900 flex items-center gap-1.5">
                                     <MapPin className="h-3.5 w-3.5 text-primary-coral" />
                                     Available Facilities ({rooms.length})
@@ -743,19 +740,19 @@ export function TimoWorkspaceModal({
                                     Free at {tr.data.interval}
                                   </Badge>
                                 </div>
-                                <div className="grid grid-cols-2 gap-2 pt-1">
+                                <div className="grid grid-cols-2 gap-2 pt-0.5">
                                   {rooms.slice(0, 6).map((r: any, rId: number) => (
                                     <div
                                       key={rId}
-                                      className="p-2 rounded-xl bg-slate-50 border border-slate-200/60 flex flex-col justify-between"
+                                      className="p-2.5 rounded-xl bg-white/90 hover:bg-white border border-slate-200/60 shadow-xs hover:border-primary-coral/40 transition-all flex flex-col justify-between"
                                     >
                                       <div>
                                         <div className="font-bold text-slate-800">{r.code}</div>
                                         <div className="text-[10px] text-slate-500 line-clamp-1">{r.name}</div>
                                       </div>
-                                      <div className="mt-1 flex items-center justify-between text-[10px] text-slate-600">
+                                      <div className="mt-1.5 flex items-center justify-between text-[10px] text-slate-600">
                                         <span>{r.capacity} seats</span>
-                                        <span className="text-[9px] px-1 py-0.2 bg-white rounded border border-slate-200">
+                                        <span className="text-[9px] px-1 py-0.2 bg-slate-50 rounded border border-slate-200">
                                           {r.building}
                                         </span>
                                       </div>
@@ -772,9 +769,9 @@ export function TimoWorkspaceModal({
                             return (
                               <div
                                 key={trIdx}
-                                className="bg-white rounded-2xl border border-slate-200/80 p-3 shadow-xs space-y-2 text-xs"
+                                className="bg-gradient-to-br from-rose-50/30 via-white to-white rounded-2xl border border-rose-100/70 p-3.5 shadow-xs space-y-2.5 text-xs"
                               >
-                                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                <div className="flex items-center justify-between border-b border-rose-50 pb-2">
                                   <span className="font-bold text-slate-900 flex items-center gap-1.5">
                                     <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />
                                     Identified Conflicts ({conflicts.length})
@@ -787,11 +784,11 @@ export function TimoWorkspaceModal({
                                     Open Studio <ArrowRight className="h-3 w-3" />
                                   </Link>
                                 </div>
-                                <div className="space-y-1.5 pt-1">
+                                <div className="space-y-1.5 pt-0.5">
                                   {conflicts.map((c: any) => (
                                     <div
                                       key={c.id}
-                                      className="p-2 rounded-xl bg-rose-50/50 border border-rose-100 flex items-start justify-between gap-2"
+                                      className="p-2 rounded-xl bg-rose-50/40 border border-rose-100 flex items-start justify-between gap-2"
                                     >
                                       <div>
                                         <div className="font-bold text-slate-800 text-[11px] flex items-center gap-1.5">
@@ -910,7 +907,7 @@ export function TimoWorkspaceModal({
         </div>
 
         {/* ── Message Composer ──────────────────────────────────────────────── */}
-        <div className="p-3 sm:p-4 border-t border-slate-200/80 bg-white/90 backdrop-blur-md shrink-0">
+        <div className="p-3 sm:p-4 border-t border-slate-200/70 bg-white/80 backdrop-blur-xl shrink-0">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -918,7 +915,7 @@ export function TimoWorkspaceModal({
             }}
             className="flex flex-col gap-2"
           >
-            <div className="relative rounded-2xl border border-slate-300 focus-within:border-primary-coral focus-within:ring-2 focus-within:ring-primary-coral/20 bg-white transition-all shadow-xs">
+            <div className="relative rounded-2xl border border-slate-200/90 focus-within:border-primary-coral focus-within:ring-2 focus-within:ring-primary-coral/20 bg-slate-50/70 hover:bg-white focus-within:bg-white transition-all duration-200 shadow-xs">
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -934,10 +931,10 @@ export function TimoWorkspaceModal({
                 <button
                   type="button"
                   onClick={toggleSpeechRecognition}
-                  className={`p-1.5 rounded-xl transition cursor-pointer ${
+                  className={`p-1.5 rounded-xl transition-all cursor-pointer ${
                     isListening
-                      ? "bg-rose-500 text-white animate-pulse"
-                      : "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                      ? "bg-rose-500 text-white shadow-md animate-pulse"
+                      : "text-slate-400 hover:text-slate-700 hover:bg-slate-200/70"
                   }`}
                   title={isListening ? "Stop listening" : "Dictate with voice"}
                 >
@@ -948,7 +945,7 @@ export function TimoWorkspaceModal({
                 <button
                   type="submit"
                   disabled={!input.trim() || isTyping}
-                  className="p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
+                  className="p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white disabled:opacity-25 disabled:pointer-events-none transition-all cursor-pointer shadow-xs active:scale-95"
                   title="Send message (Enter)"
                 >
                   <Send className="h-3.5 w-3.5" />
@@ -957,7 +954,7 @@ export function TimoWorkspaceModal({
             </div>
 
             <div className="flex items-center justify-between text-[10px] text-slate-400 px-1">
-              <span>Press <kbd className="font-mono bg-slate-100 px-1 py-0.5 rounded border border-slate-200 text-slate-600">Enter</kbd> to send, <kbd className="font-mono bg-slate-100 px-1 py-0.5 rounded border border-slate-200 text-slate-600">Shift+Enter</kbd> for newline</span>
+              <span>Press <kbd className="font-mono bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-600 shadow-2xs">Enter</kbd> to send, <kbd className="font-mono bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-600 shadow-2xs">Shift+Enter</kbd> for newline</span>
               <span className="flex items-center gap-1 text-emerald-700 font-medium">
                 <Sparkles className="h-3 w-3 text-primary-coral" /> Timo Copilot • Groq Powered
               </span>

@@ -81,79 +81,79 @@ export default function FacultyPage() {
         }
       />
 
-      {/* ── KPI Metric Summary Row ─────────────────────────────── */}
+      {/* ── KPI Metric Summary Row (Glassmorphic Minimalism) ─── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <Card className="p-4 flex flex-col justify-between bg-white border border-slate-200/80 shadow-2xs hover:shadow-card-soft rounded-2xl min-h-[116px] transition-all duration-200">
+        <Card className="p-4.5 flex flex-col justify-between bg-gradient-to-br from-indigo-50/30 via-white/95 to-white/90 backdrop-blur-xl border border-slate-200/70 shadow-xs hover:shadow-md rounded-3xl min-h-[120px] transition-all duration-200 hover:-translate-y-0.5">
           <div className="flex items-start justify-between">
             <span className="text-[26px] leading-none font-bold text-slate-900 tracking-tight font-sans">
               {dataset.faculty.length}
             </span>
-            <div className="w-7 h-7 rounded-full border border-slate-200/80 bg-slate-50 flex items-center justify-center text-slate-500 shrink-0">
-              <Users className="h-3.5 w-3.5" />
+            <div className="w-8 h-8 rounded-2xl border border-indigo-100 bg-indigo-50/50 flex items-center justify-center text-indigo-600 shrink-0 shadow-2xs">
+              <Users className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-2.5">
+          <div className="mt-3">
             <div className="text-xs font-semibold text-slate-600 tracking-tight">
               Appointed Faculty
             </div>
-            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10.5px] font-semibold mt-1 border border-slate-200/60 shadow-2xs">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100/90 text-slate-700 text-[10.5px] font-semibold mt-1 border border-slate-200/60 shadow-2xs">
               <span>Professors, Readers & Lecturers</span>
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 flex flex-col justify-between bg-white border border-slate-200/80 shadow-2xs hover:shadow-card-soft rounded-2xl min-h-[116px] transition-all duration-200">
+        <Card className="p-4.5 flex flex-col justify-between bg-gradient-to-br from-emerald-50/30 via-white/95 to-white/90 backdrop-blur-xl border border-slate-200/70 shadow-xs hover:shadow-md rounded-3xl min-h-[120px] transition-all duration-200 hover:-translate-y-0.5">
           <div className="flex items-start justify-between">
             <span className="text-[26px] leading-none font-bold text-emerald-600 tracking-tight font-sans">
               {avgLoad}h
             </span>
-            <div className="w-7 h-7 rounded-full border border-emerald-200/80 bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
-              <Clock className="h-3.5 w-3.5" />
+            <div className="w-8 h-8 rounded-2xl border border-emerald-100 bg-emerald-50/50 flex items-center justify-center text-emerald-600 shrink-0 shadow-2xs">
+              <Clock className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-2.5">
+          <div className="mt-3">
             <div className="text-xs font-semibold text-slate-600 tracking-tight">
               Average Workload
             </div>
-            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10.5px] font-semibold mt-1 border border-emerald-200/50 shadow-2xs">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50/80 text-emerald-700 text-[10.5px] font-semibold mt-1 border border-emerald-200/50 shadow-2xs">
               <span>Optimal load distribution</span>
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 flex flex-col justify-between bg-white border border-slate-200/80 shadow-2xs hover:shadow-card-soft rounded-2xl min-h-[116px] transition-all duration-200">
+        <Card className="p-4.5 flex flex-col justify-between bg-gradient-to-br from-amber-50/30 via-white/95 to-white/90 backdrop-blur-xl border border-slate-200/70 shadow-xs hover:shadow-md rounded-3xl min-h-[120px] transition-all duration-200 hover:-translate-y-0.5">
           <div className="flex items-start justify-between">
-            <span className="text-[26px] leading-none font-bold text-[#FF6B4A] tracking-tight font-sans">
+            <span className="text-[26px] leading-none font-bold text-amber-600 tracking-tight font-sans">
               {dataset.departments.length}
             </span>
-            <div className="w-7 h-7 rounded-full border border-orange-200/80 bg-orange-50 flex items-center justify-center text-[#FF6B4A] shrink-0">
-              <GraduationCap className="h-3.5 w-3.5" />
+            <div className="w-8 h-8 rounded-2xl border border-amber-100 bg-amber-50/50 flex items-center justify-center text-amber-600 shrink-0 shadow-2xs">
+              <GraduationCap className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-2.5">
+          <div className="mt-3">
             <div className="text-xs font-semibold text-slate-600 tracking-tight">
               Academic Divisions
             </div>
-            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-orange-50 text-[#FF6B4A] text-[10.5px] font-semibold mt-1 border border-orange-200/60 shadow-2xs">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50/80 text-amber-700 text-[10.5px] font-semibold mt-1 border border-amber-200/60 shadow-2xs">
               <span>CS, ECE, Bio & Applied Math</span>
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 flex flex-col justify-between bg-white border border-slate-200/80 shadow-2xs hover:shadow-card-soft rounded-2xl min-h-[116px] transition-all duration-200">
+        <Card className="p-4.5 flex flex-col justify-between bg-gradient-to-br from-sky-50/30 via-white/95 to-white/90 backdrop-blur-xl border border-slate-200/70 shadow-xs hover:shadow-md rounded-3xl min-h-[120px] transition-all duration-200 hover:-translate-y-0.5">
           <div className="flex items-start justify-between">
             <span className="text-[26px] leading-none font-bold text-sky-600 tracking-tight font-sans">
               100%
             </span>
-            <div className="w-7 h-7 rounded-full border border-sky-200/80 bg-sky-50 flex items-center justify-center text-sky-600 shrink-0">
-              <CheckCircle2 className="h-3.5 w-3.5" />
+            <div className="w-8 h-8 rounded-2xl border border-sky-100 bg-sky-50/50 flex items-center justify-center text-sky-600 shrink-0 shadow-2xs">
+              <CheckCircle2 className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-2.5">
+          <div className="mt-3">
             <div className="text-xs font-semibold text-slate-600 tracking-tight">
               Curriculum Coverage
             </div>
-            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 text-[10.5px] font-semibold mt-1 border border-sky-200/60 shadow-2xs">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-50/80 text-sky-700 text-[10.5px] font-semibold mt-1 border border-sky-200/60 shadow-2xs">
               <span>Zero unstaffed course units</span>
             </div>
           </div>
@@ -215,7 +215,7 @@ export default function FacultyPage() {
           return (
             <div
               key={fac.id}
-              className="p-5 rounded-3xl bg-white border border-slate-100 shadow-card-soft hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-4 group"
+              className="p-5 rounded-3xl bg-gradient-to-br from-white/95 via-slate-50/40 to-white/90 backdrop-blur-xl border border-slate-200/80 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col justify-between space-y-4 group"
             >
               <div>
                 <div className="flex items-start justify-between">

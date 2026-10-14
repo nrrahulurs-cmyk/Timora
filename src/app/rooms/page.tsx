@@ -66,79 +66,79 @@ export default function RoomsPage() {
         }
       />
 
-      {/* KPI Metric Summary Row (Stitch-Style) */}
+      {/* KPI Metric Summary Row (Glassmorphic Minimalism) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <Card className="p-4 flex flex-col justify-between bg-white border border-slate-200/80 shadow-2xs hover:shadow-card-soft rounded-2xl min-h-[116px] transition-all duration-200">
+        <Card className="p-4.5 flex flex-col justify-between bg-gradient-to-br from-indigo-50/30 via-white/95 to-white/90 backdrop-blur-xl border border-slate-200/70 shadow-xs hover:shadow-md rounded-3xl min-h-[120px] transition-all duration-200 hover:-translate-y-0.5">
           <div className="flex items-start justify-between">
             <span className="text-[26px] leading-none font-bold text-slate-900 tracking-tight font-sans">
               {rooms.length}
             </span>
-            <div className="w-7 h-7 rounded-full border border-slate-200/80 bg-slate-50 flex items-center justify-center text-slate-500 shrink-0">
-              <Building2 className="h-3.5 w-3.5" />
+            <div className="w-8 h-8 rounded-2xl border border-indigo-100 bg-indigo-50/50 flex items-center justify-center text-indigo-600 shrink-0 shadow-2xs">
+              <Building2 className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-2.5">
+          <div className="mt-3">
             <div className="text-xs font-semibold text-slate-600 tracking-tight">
               Total Facilities
             </div>
-            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10.5px] font-semibold mt-1 border border-slate-200/60 shadow-2xs">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100/90 text-slate-700 text-[10.5px] font-semibold mt-1 border border-slate-200/60 shadow-2xs">
               <span>Auditoriums, Labs & Halls</span>
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 flex flex-col justify-between bg-white border border-slate-200/80 shadow-2xs hover:shadow-card-soft rounded-2xl min-h-[116px] transition-all duration-200">
+        <Card className="p-4.5 flex flex-col justify-between bg-gradient-to-br from-emerald-50/30 via-white/95 to-white/90 backdrop-blur-xl border border-slate-200/70 shadow-xs hover:shadow-md rounded-3xl min-h-[120px] transition-all duration-200 hover:-translate-y-0.5">
           <div className="flex items-start justify-between">
             <span className="text-[26px] leading-none font-bold text-emerald-600 tracking-tight font-sans">
               {availableCount}
             </span>
-            <div className="w-7 h-7 rounded-full border border-emerald-200/80 bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
-              <CheckCircle2 className="h-3.5 w-3.5" />
+            <div className="w-8 h-8 rounded-2xl border border-emerald-100 bg-emerald-50/50 flex items-center justify-center text-emerald-600 shrink-0 shadow-2xs">
+              <CheckCircle2 className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-2.5">
+          <div className="mt-3">
             <div className="text-xs font-semibold text-slate-600 tracking-tight">
               Available Now
             </div>
-            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10.5px] font-semibold mt-1 border border-emerald-200/50 shadow-2xs">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50/80 text-emerald-700 text-[10.5px] font-semibold mt-1 border border-emerald-200/50 shadow-2xs">
               <span>Ready for immediate booking</span>
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 flex flex-col justify-between bg-white border border-slate-200/80 shadow-2xs hover:shadow-card-soft rounded-2xl min-h-[116px] transition-all duration-200">
+        <Card className="p-4.5 flex flex-col justify-between bg-gradient-to-br from-amber-50/30 via-white/95 to-white/90 backdrop-blur-xl border border-slate-200/70 shadow-xs hover:shadow-md rounded-3xl min-h-[120px] transition-all duration-200 hover:-translate-y-0.5">
           <div className="flex items-start justify-between">
             <span className="text-[26px] leading-none font-bold text-amber-600 tracking-tight font-sans">
               {occupiedCount}
             </span>
-            <div className="w-7 h-7 rounded-full border border-amber-200/80 bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
-              <Clock className="h-3.5 w-3.5" />
+            <div className="w-8 h-8 rounded-2xl border border-amber-100 bg-amber-50/50 flex items-center justify-center text-amber-600 shrink-0 shadow-2xs">
+              <Clock className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-2.5">
+          <div className="mt-3">
             <div className="text-xs font-semibold text-slate-600 tracking-tight">
               In Session / Occupied
             </div>
-            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[10.5px] font-semibold mt-1 border border-amber-200/60 shadow-2xs">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50/80 text-amber-700 text-[10.5px] font-semibold mt-1 border border-amber-200/60 shadow-2xs">
               <span>Live classes active</span>
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 flex flex-col justify-between bg-white border border-slate-200/80 shadow-2xs hover:shadow-card-soft rounded-2xl min-h-[116px] transition-all duration-200">
+        <Card className="p-4.5 flex flex-col justify-between bg-gradient-to-br from-blue-50/30 via-white/95 to-white/90 backdrop-blur-xl border border-slate-200/70 shadow-xs hover:shadow-md rounded-3xl min-h-[120px] transition-all duration-200 hover:-translate-y-0.5">
           <div className="flex items-start justify-between">
             <span className="text-[26px] leading-none font-bold text-blue-600 tracking-tight font-sans">
               {utilization}%
             </span>
-            <div className="w-7 h-7 rounded-full border border-blue-200/80 bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
-              <PieChart className="h-3.5 w-3.5" />
+            <div className="w-8 h-8 rounded-2xl border border-blue-100 bg-blue-50/50 flex items-center justify-center text-blue-600 shrink-0 shadow-2xs">
+              <PieChart className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-2.5">
+          <div className="mt-3">
             <div className="text-xs font-semibold text-slate-600 tracking-tight">
               Campus Space Utilization
             </div>
-            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10.5px] font-semibold mt-1 border border-blue-200/60 shadow-2xs">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50/80 text-blue-700 text-[10.5px] font-semibold mt-1 border border-blue-200/60 shadow-2xs">
               <span>Balanced academic loading</span>
             </div>
           </div>
@@ -259,14 +259,14 @@ export default function RoomsPage() {
           {rooms.map((room) => (
             <Card
               key={room.id}
-              className="p-4 flex flex-col justify-between space-y-3 bg-white border border-slate-200/80 shadow-2xs hover:shadow-card-soft rounded-2xl hover:-translate-y-0.5 transition-all duration-200"
+              className="p-5 flex flex-col justify-between space-y-3.5 bg-gradient-to-br from-white/95 via-slate-50/40 to-white/90 backdrop-blur-xl border border-slate-200/80 shadow-xs hover:shadow-md rounded-3xl hover:-translate-y-0.5 transition-all duration-200"
             >
               <div className="flex items-start justify-between">
                 <div>
                   <span className="font-mono text-base font-bold text-slate-900 block">
                     {room.code}
                   </span>
-                  <span className="text-xs text-slate-500">{room.name}</span>
+                  <span className="text-xs text-slate-500 font-medium">{room.name}</span>
                 </div>
                 <Badge
                   variant={
@@ -284,7 +284,7 @@ export default function RoomsPage() {
                 </Badge>
               </div>
 
-              <div className="text-xs text-slate-600 space-y-1.5 bg-slate-50/70 p-3 rounded-xl border border-slate-200/60">
+              <div className="text-xs text-slate-600 space-y-1.5 bg-white/70 p-3.5 rounded-2xl border border-slate-200/60 shadow-2xs">
                 <div className="flex justify-between">
                   <span className="text-slate-400">Building:</span>
                   <span className="font-medium text-slate-800">{room.building}</span>
@@ -295,7 +295,7 @@ export default function RoomsPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Next Slot:</span>
-                  <span className="font-mono text-slate-700">{room.nextAvailableSlot}</span>
+                  <span className="font-mono text-slate-700 font-semibold">{room.nextAvailableSlot}</span>
                 </div>
               </div>
 
@@ -304,7 +304,7 @@ export default function RoomsPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setModalOpen(true)}
-                  className="w-full text-xs h-8 rounded-full shadow-2xs font-semibold"
+                  className="w-full text-xs h-8.5 rounded-full shadow-2xs font-semibold hover:bg-slate-900 hover:text-white transition-all cursor-pointer"
                 >
                   Allocate Room
                 </Button>
