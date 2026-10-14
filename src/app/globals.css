@@ -7,58 +7,58 @@
    ═══════════════════════════════════════════════════════════════ */
 
 :root {
-  /* ── Backgrounds ─────────────────────────────── */
-  --color-bg-page:          248 250 252;   /* #f8fafc  slate-50 */
+  /* ── Canvas & Stitch Surfaces ─────────────────── */
+  --color-bg-page:          244 245 251;   /* #f4f5fb  Stitch warm canvas */
   --color-bg-surface:       255 255 255;   /* #ffffff  white */
-  --color-bg-surface-hover: 241 245 249;   /* #f1f5f9  slate-100 */
+  --color-bg-surface-hover: 247 247 245;   /* #f7f7f5  Stitch soft hover wash */
   --color-bg-elevated:      255 255 255;   /* #ffffff  modals, dialogs */
   --color-bg-sidebar:       255 255 255;   /* #ffffff  sidebar base */
 
-  /* ── Primary (Professional Blue) ─────────────── */
-  --color-primary:          0 102 204;     /* #0066cc */
-  --color-primary-hover:    0 85 179;      /* #0055b3 */
-  --color-primary-light:    237 242 254;   /* #edf2fe  active nav bg */
+  /* ── Stitch Primary & Accents ────────────────── */
+  --color-primary:          0 64 223;      /* #0040df  Stitch electric blue */
+  --color-primary-hover:    0 45 180;      /* #002db4 */
+  --color-primary-light:    240 238 255;   /* #f0eeff  active nav tint */
   --color-primary-foreground: 255 255 255; /* white text on primary */
 
   /* ── Text ────────────────────────────────────── */
-  --color-text-heading:     15 23 42;      /* #0f172a  slate-900 */
+  --color-text-heading:     18 19 22;      /* #121316  Stitch obsidian charcoal */
   --color-text-body:        51 65 85;      /* #334155  slate-700 */
   --color-text-secondary:   100 116 139;   /* #64748b  slate-500 */
   --color-text-tertiary:    148 163 184;   /* #94a3b8  slate-400 */
   --color-text-inverse:     255 255 255;   /* white */
 
-  /* ── Borders ─────────────────────────────────── */
-  --color-border-default:   226 232 240;   /* #e2e8f0  slate-200 */
-  --color-border-light:     241 245 249;   /* #f1f5f9  slate-100 */
+  /* ── Borders (Hairlines) ─────────────────────── */
+  --color-border-default:   234 234 231;   /* #eaeae7  Stitch bone hairline */
+  --color-border-light:     242 242 238;   /* #f2f2ee  soft parchment hairline */
 
   /* ── Semantic Status ─────────────────────────── */
   --color-success:          16 185 129;    /* #10b981  emerald-500 */
-  --color-success-light:    236 253 245;   /* #ecfdf5  emerald-50 */
+  --color-success-light:    232 248 240;   /* #e8f8f0  Stitch mint */
   --color-success-text:     5 150 105;     /* #059669  emerald-600 */
 
   --color-warning:          245 158 11;    /* #f59e0b  amber-500 */
-  --color-warning-light:    255 251 235;   /* #fffbeb  amber-50 */
+  --color-warning-light:    254 248 231;   /* #fef8e7  Stitch amberLight */
   --color-warning-text:     217 119 6;     /* #d97706  amber-600 */
 
   --color-error:            239 68 68;     /* #ef4444  red-500 */
-  --color-error-light:      254 242 242;   /* #fef2f2  red-50 */
+  --color-error-light:      254 242 242;   /* #fef2f2  Stitch coral / rose */
   --color-error-text:       220 38 38;     /* #dc2626  red-600 */
 
-  --color-info:             59 130 246;    /* #3b82f6  blue-500 */
-  --color-info-light:       239 246 255;   /* #eff6ff  blue-50 */
-  --color-info-text:        37 99 235;     /* #2563eb  blue-600 */
+  --color-info:             2 132 199;     /* #0284c7  Stitch sky */
+  --color-info-light:       235 245 255;   /* #ebf5ff  Stitch skyLight */
+  --color-info-text:        2 132 199;     /* #0284c7  sky-600 */
 
   /* ── Focus ───────────────────────────────────── */
-  --color-focus-ring:       0 102 204;     /* matches primary */
+  --color-focus-ring:       45 91 255;     /* #2d5bff */
 
-  /* ── Glassmorphism (overlays only) ───────────── */
-  --glass-bg:               rgba(255, 255, 255, 0.92);
-  --glass-border:           rgba(226, 232, 240, 0.8);
-  --glass-blur:             12px;
-  --glass-shadow:           0 10px 30px rgba(0, 0, 0, 0.06);
+  /* ── Glassmorphism ───────────────────────────── */
+  --glass-bg:               rgba(255, 255, 255, 0.88);
+  --glass-border:           rgba(255, 255, 255, 0.9);
+  --glass-blur:             16px;
+  --glass-shadow:           0 20px 48px -8px rgba(18, 19, 22, 0.08);
 
   /* ── Layout ──────────────────────────────────── */
-  --sidebar-width:          250px;
+  --sidebar-width:          256px;
   --topbar-height:          60px;
   --content-padding:        28px;
   --content-gap:            16px;
@@ -66,14 +66,18 @@
   /* ── Radii ───────────────────────────────────── */
   --radius-sm:              6px;
   --radius-md:              8px;
-  --radius-lg:              10px;
-  --radius-xl:              14px;
+  --radius-lg:              12px;
+  --radius-xl:              16px;
+  --radius-2xl:             24px;
+  --radius-3xl:             32px;
   --radius-full:            9999px;
 
   /* ── Shadows ─────────────────────────────────── */
   --shadow-xs:              0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-sm:              0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.02);
   --shadow-md:              0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  --shadow-app-window:      0 25px 70px -15px rgba(30, 41, 59, 0.08), 0 0 2px rgba(0, 0, 0, 0.04);
+  --shadow-card-soft:       0 8px 24px -6px rgba(100, 116, 139, 0.06);
 }
 
 /* ── Tailwind theme integration ────────────────── */
@@ -114,13 +118,16 @@
   --color-info-light: rgb(var(--color-info-light));
   --color-info-text: rgb(var(--color-info-text));
 
-  --font-sans: var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: var(--font-plus-jakarta), var(--font-inter), 'Plus Jakarta Sans', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: var(--font-jetbrains), 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
 
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
   --radius-lg: var(--radius-lg);
   --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-2xl);
+  --radius-3xl: var(--radius-3xl);
+  --radius-full: var(--radius-full);
 }
 
 /* ── Base styles ───────────────────────────────── */
@@ -130,6 +137,42 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Ambient Radial Glows (Google Stitch Architecture) ─────── */
+.bg-blob-1 {
+  position: fixed;
+  top: -120px;
+  left: -80px;
+  width: 580px;
+  height: 580px;
+  background: radial-gradient(circle, rgba(224, 231, 255, 0.75) 0%, rgba(244, 245, 251, 0) 70%);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.bg-blob-2 {
+  position: fixed;
+  bottom: -150px;
+  right: -100px;
+  width: 650px;
+  height: 650px;
+  background: radial-gradient(circle, rgba(254, 240, 230, 0.8) 0%, rgba(244, 245, 251, 0) 70%);
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ── Stitch Custom Elevation Classes ───────────── */
+.shadow-app-window {
+  box-shadow: 0 25px 70px -15px rgba(30, 41, 59, 0.08), 0 0 2px rgba(0, 0, 0, 0.04);
+}
+
+.shadow-card-soft {
+  box-shadow: 0 8px 24px -6px rgba(100, 116, 139, 0.06);
+}
+
+.inner-light-rim {
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.8);
 }
 
 /* ── Focus visible (keyboard nav) ──────────────── */
