@@ -74,7 +74,7 @@ export function Topbar({ onOpenMobileMenu, onSearchClick }: TopbarProps) {
 
         <div className="relative w-full cursor-pointer" onClick={onSearchClick}>
           <Input
-            placeholder="Search classes, rooms, faculty, slots... (⌘K)"
+            placeholder="Search classes, rooms, faculty... (⌘K)"
             leftIcon={<Search className="h-4 w-4" />}
             className="h-8.5 bg-slate-50/80 border-slate-200 text-xs placeholder:text-slate-400 focus:bg-white transition-all w-full cursor-pointer"
             readOnly

@@ -7,8 +7,8 @@ import {
   Building2,
   CalendarPlus,
   Sparkles,
-  ChevronRight,
   Download,
+  ChevronRight,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,8 @@ interface QuickActionsProps {
   onOpenScheduleExtraClass: () => void;
   onOpenAskSynapse: () => void;
   onOpenExportTimetable?: () => void;
+  activeConflictsCount?: number;
+  availableRoomsCount?: number;
 }
 
 export function QuickActions({
@@ -29,122 +31,118 @@ export function QuickActions({
   onOpenScheduleExtraClass,
   onOpenAskSynapse,
   onOpenExportTimetable,
+  activeConflictsCount = 5,
+  availableRoomsCount = 11,
 }: QuickActionsProps) {
   const actions = [
     {
       title: "Timetable Studio",
-      description: "Visual grid editor for section scheduling and room assignments",
+      description: "Visual grid editor",
       icon: CalendarDays,
-      iconColor: "text-blue-600",
-      iconBg: "bg-blue-50 border-blue-200/60",
+      badge: "Matrix",
       onClick: onOpenTimetableStudio,
-      badge: "Core",
     },
     {
       title: "Export Timetable",
-      description: "Download weekly schedules in PDF, Excel (.xlsx) and CSV formats",
+      description: "PDF, XLSX, CSV",
       icon: Download,
-      iconColor: "text-indigo-600",
-      iconBg: "bg-indigo-50 border-indigo-200/60",
+      badge: "Export",
       onClick: onOpenExportTimetable || onOpenTimetableStudio,
-      badge: "PDF • XLSX",
-      badgeVariant: "secondary" as const,
     },
     {
       title: "Resolve Conflicts",
-      description: "Step-by-step resolution for 3 active classroom clashes",
+      description: `${activeConflictsCount} pending clashes`,
       icon: AlertTriangle,
-      iconColor: "text-amber-600",
-      iconBg: "bg-amber-50 border-amber-200/60",
-      onClick: onOpenResolveConflicts,
-      badge: "3 Pending",
+      badge: `${activeConflictsCount} Clashes`,
       badgeVariant: "error" as const,
+      onClick: onOpenResolveConflicts,
     },
     {
       title: "Find a Room",
-      description: "Instantly locate vacant lecture theatres, labs, and seminar rooms",
+      description: `${availableRoomsCount} facilities vacant`,
       icon: Building2,
-      iconColor: "text-emerald-600",
-      iconBg: "bg-emerald-50 border-emerald-200/60",
-      onClick: onOpenFindRoom,
-      badge: "42 Free",
+      badge: `${availableRoomsCount} Free`,
       badgeVariant: "success" as const,
+      onClick: onOpenFindRoom,
     },
     {
       title: "Schedule Extra Class",
-      description: "Book an ad-hoc revision lecture, tutorial, or makeup session",
+      description: "Ad-hoc lecture booking",
       icon: CalendarPlus,
-      iconColor: "text-purple-600",
-      iconBg: "bg-purple-50 border-purple-200/60",
+      badge: "Booking",
       onClick: onOpenScheduleExtraClass,
     },
     {
       title: "Ask Timora",
-      description: "AI-assisted constraint solver, schedule optimization & queries",
+      description: "AI scheduling copilot",
       icon: Sparkles,
-      iconColor: "text-[rgb(var(--color-primary))]",
-      iconBg: "bg-blue-50 border-blue-200/60",
-      onClick: onOpenAskSynapse,
-      badge: "Gemini AI",
+      badge: "Gemini",
       badgeVariant: "default" as const,
+      onClick: onOpenAskSynapse,
     },
   ];
 
   return (
-    <Card className="flex flex-col justify-between bg-white border-[rgb(var(--color-border-default))] shadow-xs">
-      <CardHeader className="pb-3 border-b border-slate-100">
+    <Card className="flex flex-col justify-between bg-white border border-slate-200/80 shadow-xs rounded-xl overflow-hidden">
+      <CardHeader className="px-4 py-3 border-b border-slate-100 bg-slate-50/40">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-semibold text-[rgb(var(--color-text-heading))]">
+          <CardTitle className="text-[14px] font-semibold text-slate-900 tracking-[-0.01em]">
             Quick Actions
           </CardTitle>
-          <span className="text-[11px] text-slate-400 font-mono">6 Shortcuts</span>
+          <span className="text-[11px] text-slate-400 font-mono">6 Operational Shortcuts</span>
         </div>
-        <CardDescription className="text-xs text-[rgb(var(--color-text-secondary))]">
-          Immediate shortcuts for daily academic scheduling operations.
+        <CardDescription className="text-xs text-slate-500 mt-0.5">
+          Direct navigation and scheduling workflows.
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="p-3 space-y-2">
-        {actions.map((act) => {
-          const Icon = act.icon;
-          return (
-            <button
-              key={act.title}
-              type="button"
-              onClick={act.onClick}
-              className="w-full group p-2.5 rounded-[var(--radius-md)] border border-slate-200/80 hover:border-[rgb(var(--color-primary))] hover:bg-blue-50/20 transition-all flex items-center justify-between text-left gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--color-focus-ring))]"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div
-                  className={`h-9 w-9 rounded-[var(--radius-md)] border flex items-center justify-center shrink-0 ${act.iconBg}`}
-                >
-                  <Icon className={`h-4.5 w-4.5 ${act.iconColor}`} />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-xs text-slate-800 group-hover:text-[rgb(var(--color-primary))] transition-colors">
-                      {act.title}
-                    </span>
-                    {act.badge && (
-                      <Badge
-                        variant={act.badgeVariant || "secondary"}
-                        size="sm"
-                        className="text-[10px] py-0"
-                      >
-                        {act.badge}
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                    {act.description}
-                  </p>
-                </div>
-              </div>
+      <CardContent className="p-3">
+        <div className="grid grid-cols-2 gap-2.5">
+          {actions.map((act) => {
+            const Icon = act.icon;
+            const isAlert = act.badgeVariant === "error";
 
-              <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-[rgb(var(--color-primary))] group-hover:translate-x-0.5 transition-all shrink-0" />
-            </button>
-          );
-        })}
+            return (
+              <button
+                key={act.title}
+                type="button"
+                onClick={act.onClick}
+                className="group p-2.5 rounded-lg border border-slate-200/80 hover:border-[#0066cc]/60 hover:bg-blue-50/20 transition-all flex flex-col justify-between text-left gap-2 min-h-[78px] bg-white active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0066cc]/40"
+              >
+                <div className="flex items-start justify-between w-full">
+                  <div
+                    className={`w-7 h-7 rounded-md border flex items-center justify-center shrink-0 ${
+                      isAlert
+                        ? "bg-amber-50 border-amber-200/70 text-amber-600"
+                        : "bg-blue-50/80 border-blue-200/60 text-[#0066cc]"
+                    }`}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                  </div>
+
+                  {act.badge && (
+                    <Badge
+                      variant={act.badgeVariant || "secondary"}
+                      size="sm"
+                      className="text-[9.5px] py-0 px-1 font-mono tracking-tight"
+                    >
+                      {act.badge}
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="min-w-0 w-full">
+                  <div className="font-semibold text-xs text-slate-900 group-hover:text-[#0066cc] transition-colors truncate">
+                    {act.title}
+                  </div>
+                  <div className="text-[10.5px] text-slate-500 truncate mt-0.5">
+                    {act.description}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </CardContent>
     </Card>
   );

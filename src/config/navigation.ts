@@ -46,7 +46,7 @@ export const navigationConfig: NavGroup[] = [
         label: "Conflicts",
         href: "/conflicts",
         icon: AlertTriangle,
-        badge: 3,
+        badge: 5,
         badgeVariant: "error",
       },
       { label: "Rooms & Resources", href: "/rooms", icon: Building2 },

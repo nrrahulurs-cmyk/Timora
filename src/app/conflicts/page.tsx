@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { schedulingRepository } from "@/lib/repository/scheduling-repository";
 import type { ConflictRecord, SynapseCollegeDataset } from "@/types/domain";
+import { SYNAPSE_SEED_DATA } from "@/data/fixtures";
 import { ConflictResolutionDrawer } from "@/components/conflicts/conflict-resolution-drawer";
 import { validateSchedule } from "@/lib/scheduling/constraint-engine";
 import { useToast } from "@/components/feedback/use-toast";
@@ -42,10 +43,24 @@ export default function ConflictsPage() {
   const [isAuditing, setIsAuditing] = React.useState(false);
 
   const loadData = React.useCallback(async () => {
-    const data = await schedulingRepository.getDataset();
-    setDataset(data);
-    const activeConflicts = await schedulingRepository.getConflicts("active");
-    setConflicts(activeConflicts);
+    try {
+      const [data, activeConflicts] = await Promise.all([
+        schedulingRepository.getDataset().catch(() => SYNAPSE_SEED_DATA),
+        schedulingRepository.getConflicts("active").catch(() => []),
+      ]);
+      setDataset(data || SYNAPSE_SEED_DATA);
+      if (activeConflicts && activeConflicts.length > 0) {
+        setConflicts(activeConflicts);
+      } else if (data?.conflicts && data.conflicts.length > 0) {
+        setConflicts(data.conflicts.filter((c) => c.status === "active"));
+      } else {
+        setConflicts(SYNAPSE_SEED_DATA.conflicts.filter((c) => c.status === "active"));
+      }
+    } catch (err) {
+      console.error("Failed to load conflicts data:", err);
+      setDataset(SYNAPSE_SEED_DATA);
+      setConflicts(SYNAPSE_SEED_DATA.conflicts.filter((c) => c.status === "active"));
+    }
   }, []);
 
   React.useEffect(() => {

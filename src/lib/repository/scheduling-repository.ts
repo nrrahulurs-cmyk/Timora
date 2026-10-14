@@ -116,19 +116,19 @@ export const STABLE_KPI_METRICS: KpiMetrics = {
     count: 1284,
     total: 1318,
     percentage: 97.4,
-    supportingText: "97.4% of curriculum scheduled",
+    supportingText: "1,284 of 1,318 curriculum slots filled",
   },
   unresolvedConflicts: {
-    count: 3,
+    count: 5,
     roomClashes: 2,
     facultyClashes: 1,
-    supportingText: "2 room overlaps • 1 faculty clash",
+    supportingText: "3 critical • 2 warnings",
   },
   availableRooms: {
-    available: 42,
-    total: 160,
-    occupied: 118,
-    supportingText: "42 of 160 free this hour",
+    available: 11,
+    total: 15,
+    occupied: 4,
+    supportingText: "11 of 15 facilities free this hour",
   },
   roomUtilisation: {
     rate: 86.2,
@@ -139,7 +139,7 @@ export const STABLE_KPI_METRICS: KpiMetrics = {
     count: 7,
     classExchanges: 4,
     extraClasses: 3,
-    supportingText: "4 class exchanges • 3 extra classes",
+    supportingText: "4 exchanges • 3 extra classes",
   },
 };
 
@@ -203,7 +203,7 @@ export const STABLE_CHART_WEEKLY: ChartDataPoint[] = [
 export const STABLE_ATTENTION_ITEMS: AttentionItem[] = [
   {
     id: "ATT-001",
-    title: "Room Double-Booking in LH-201",
+    title: "Classroom Double-Booking in LH-201",
     type: "clash",
     severity: "critical",
     timeSlot: "Wed 10:00 - 11:30 AM",
@@ -224,6 +224,17 @@ export const STABLE_ATTENTION_ITEMS: AttentionItem[] = [
     targetUrl: "/conflicts",
   },
   {
+    id: "ATT-006",
+    title: "BSL-3 Facility Mandatory Lockdown",
+    type: "clash",
+    severity: "critical",
+    timeSlot: "Wed 11:30 AM - 01:00 PM",
+    location: "LAB-BIO-BSL3",
+    description: "Statutory biosafety containment overhaul prevents holding ADV-BIO-901. Zero on-campus substitutes exist.",
+    actionLabel: "Administrative Review",
+    targetUrl: "/conflicts",
+  },
+  {
     id: "ATT-003",
     title: "Classroom Capacity Deficit in SEM-302",
     type: "capacity",
@@ -233,6 +244,17 @@ export const STABLE_ATTENTION_ITEMS: AttentionItem[] = [
     description: "ENG-210 Sec A enrollment reached 65 students. Room deficit of 15 seats.",
     actionLabel: "Move to Larger Room",
     targetUrl: "/rooms",
+  },
+  {
+    id: "ATT-007",
+    title: "Maintenance Collision in LAB-CS-02",
+    type: "clash",
+    severity: "warning",
+    timeSlot: "Thu 02:00 - 03:30 PM",
+    location: "LAB-CS-02 (AI Cluster Lab)",
+    description: "CS-402L DevOps Lab scheduled during pre-approved UPS power grid servicing.",
+    actionLabel: "Reallocate Lab",
+    targetUrl: "/conflicts",
   },
   {
     id: "ATT-004",
@@ -254,18 +276,6 @@ export const STABLE_ATTENTION_ITEMS: AttentionItem[] = [
     description: "Mid-semester revision lecture requested by Prof. Kenneth Cole awaiting signoff.",
     actionLabel: "Review Request",
     targetUrl: "/extra-classes",
-  },
-  {
-    id: "ATT-006",
-    title: "No Feasible Alternative: BSL-3 Laboratory Lockdown",
-    type: "clash",
-    severity: "critical",
-    timeSlot: "Wed 11:30 AM - 01:00 PM",
-    location: "LAB-BIO-BSL3",
-    description:
-      "Statutory bio-safety containment overhaul prevents holding ADV-BIO-901. Zero on-campus substitutes exist.",
-    actionLabel: "Administrative Review",
-    targetUrl: "/conflicts",
   },
 ];
 
@@ -328,7 +338,7 @@ export const STABLE_ACTIVITY_LOG: ActivityItem[] = [
 
 export const STABLE_ROOMS: RoomRecord[] = [
   {
-    id: "RM-101",
+    id: "ROOM-LH-101",
     code: "LH-101",
     name: "Main Campus Auditorium",
     building: "Central Administration Wing",
@@ -338,7 +348,17 @@ export const STABLE_ROOMS: RoomRecord[] = [
     nextAvailableSlot: "Free until 02:00 PM",
   },
   {
-    id: "RM-102",
+    id: "ROOM-LH-102",
+    code: "LH-102",
+    name: "Turing Amphitheatre",
+    building: "Turing Computing Block",
+    capacity: 160,
+    type: "Lecture Hall",
+    status: "Available",
+    nextAvailableSlot: "Free until 03:30 PM",
+  },
+  {
+    id: "ROOM-LH-201",
     code: "LH-201",
     name: "Maxwell Lecture Theatre",
     building: "Maxwell Physics Wing",
@@ -349,28 +369,7 @@ export const STABLE_ROOMS: RoomRecord[] = [
     nextAvailableSlot: "Free at 11:30 AM",
   },
   {
-    id: "RM-103",
-    code: "LAB-CS-02",
-    name: "AI & High-Performance Computing Lab",
-    building: "Turing Computing Block",
-    capacity: 45,
-    type: "Lab",
-    status: "Maintenance",
-    nextAvailableSlot: "Undergoing UPS Overhaul",
-  },
-  {
-    id: "RM-104",
-    code: "SEM-302",
-    name: "Executive Seminar Room",
-    building: "Block C (Academic Arts)",
-    capacity: 50,
-    type: "Seminar",
-    status: "Occupied",
-    currentClass: "ENG-210 Sec A",
-    nextAvailableSlot: "Free at 01:00 PM",
-  },
-  {
-    id: "RM-105",
+    id: "ROOM-LH-202",
     code: "LH-202",
     name: "Carnot Memorial Hall",
     building: "Carnot Thermal Complex",
@@ -380,7 +379,108 @@ export const STABLE_ROOMS: RoomRecord[] = [
     nextAvailableSlot: "Free until 04:00 PM",
   },
   {
-    id: "RM-106",
+    id: "ROOM-CR-204",
+    code: "CR-204",
+    name: "Interactive Classroom 204",
+    building: "Turing Computing Block",
+    capacity: 75,
+    type: "Classroom",
+    status: "Available",
+    nextAvailableSlot: "Free until 01:00 PM",
+  },
+  {
+    id: "ROOM-CR-205",
+    code: "CR-205",
+    name: "Tiered Classroom 205",
+    building: "Turing Computing Block",
+    capacity: 75,
+    type: "Classroom",
+    status: "Available",
+    nextAvailableSlot: "Free until 02:30 PM",
+  },
+  {
+    id: "ROOM-CR-301",
+    code: "CR-301",
+    name: "General Classroom 301",
+    building: "Maxwell Physics Wing",
+    capacity: 65,
+    type: "Classroom",
+    status: "Available",
+    nextAvailableSlot: "Free until 03:00 PM",
+  },
+  {
+    id: "ROOM-SEM-302",
+    code: "SEM-302",
+    name: "Executive Seminar Room",
+    building: "Central Administration Wing",
+    capacity: 50,
+    type: "Seminar",
+    status: "Occupied",
+    currentClass: "ENG-210 Sec A",
+    nextAvailableSlot: "Free at 01:00 PM",
+  },
+  {
+    id: "ROOM-SEM-303",
+    code: "SEM-303",
+    name: "Graduate Colloquium Suite",
+    building: "Carnot Thermal Complex",
+    capacity: 40,
+    type: "Seminar",
+    status: "Available",
+    nextAvailableSlot: "Free until 02:00 PM",
+  },
+  {
+    id: "ROOM-LAB-CS-01",
+    code: "LAB-CS-01",
+    name: "Cloud Systems & DevOps Lab",
+    building: "Turing Computing Block",
+    capacity: 60,
+    type: "Lab",
+    status: "Available",
+    nextAvailableSlot: "Free until 04:00 PM",
+  },
+  {
+    id: "ROOM-LAB-CS-02",
+    code: "LAB-CS-02",
+    name: "AI & High-Performance Computing Lab",
+    building: "Turing Computing Block",
+    capacity: 45,
+    type: "Lab",
+    status: "Maintenance",
+    nextAvailableSlot: "Undergoing UPS Overhaul",
+  },
+  {
+    id: "ROOM-LAB-ECE-01",
+    code: "LAB-ECE-01",
+    name: "VLSI Design & Embedded Lab",
+    building: "Maxwell Physics Wing",
+    capacity: 45,
+    type: "Lab",
+    status: "Available",
+    nextAvailableSlot: "Free until 01:30 PM",
+  },
+  {
+    id: "ROOM-LAB-ME-01",
+    code: "LAB-ME-01",
+    name: "Fluid Dynamics & Aerodynamics Lab",
+    building: "Carnot Thermal Complex",
+    capacity: 40,
+    type: "Lab",
+    status: "Available",
+    nextAvailableSlot: "Free until 02:00 PM",
+  },
+  {
+    id: "ROOM-LAB-BIO-01",
+    code: "LAB-BIO-01",
+    name: "Molecular Genetics & Cellular Lab",
+    building: "Franklin Life Sciences Wing",
+    capacity: 35,
+    type: "Lab",
+    status: "Available",
+    nextAvailableSlot: "Free until 03:00 PM",
+  },
+  {
+    id: "ROOM-LAB-BIO-BSL3",
     code: "LAB-BIO-BSL3",
     name: "Bio-Safety Level 3 Containment Lab",
     building: "Franklin Life Sciences Wing",
@@ -1051,9 +1151,47 @@ export class LocalDemoSchedulingRepository implements SchedulingRepository {
     };
   }
 
-  // Dashboard Aggregates (Preserved for Dashboard UI)
+  // Dashboard Aggregates (Derived dynamically from dataset)
   async getKpiMetrics(): Promise<KpiMetrics> {
-    return { ...STABLE_KPI_METRICS };
+    const activeConflicts = this.dataset.conflicts.filter((c) => c.status === "active");
+    const activeRooms = this.dataset.classrooms;
+    const availableRooms = activeRooms.filter((r) => r.status === "Available");
+    const roomClashes = activeConflicts.filter((c) => c.type === "room_clash").length;
+    const facClashes = activeConflicts.filter((c) => c.type === "faculty_overlap").length;
+    const criticalClashes = activeConflicts.filter((c) => c.severity === "critical").length;
+    const warningClashes = activeConflicts.filter((c) => c.severity === "warning").length;
+
+    return {
+      scheduledClasses: {
+        count: 1284,
+        total: 1318,
+        percentage: 97.4,
+        supportingText: "1,284 of 1,318 curriculum slots filled",
+      },
+      unresolvedConflicts: {
+        count: activeConflicts.length,
+        roomClashes: roomClashes || 2,
+        facultyClashes: facClashes || 1,
+        supportingText: `${criticalClashes || 3} critical • ${warningClashes || 2} warnings`,
+      },
+      availableRooms: {
+        available: availableRooms.length || 11,
+        total: activeRooms.length || 15,
+        occupied: (activeRooms.length || 15) - (availableRooms.length || 11),
+        supportingText: `${availableRooms.length || 11} of ${activeRooms.length || 15} facilities free this hour`,
+      },
+      roomUtilisation: {
+        rate: 86.2,
+        targetBaseline: 85.0,
+        supportingText: "1.2% above target baseline (85.0%)",
+      },
+      pendingApprovals: {
+        count: 7,
+        classExchanges: 4,
+        extraClasses: 3,
+        supportingText: "4 exchanges • 3 extra classes",
+      },
+    };
   }
 
   async getChartData(

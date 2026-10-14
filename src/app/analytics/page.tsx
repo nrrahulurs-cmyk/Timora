@@ -33,6 +33,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import { schedulingRepository } from "@/lib/repository/scheduling-repository";
+import { SYNAPSE_SEED_DATA } from "@/data/fixtures";
 import type {
   SynapseCollegeDataset,
   FacultyMember,
@@ -52,15 +53,23 @@ export default function AnalyticsPage() {
   React.useEffect(() => {
     setMounted(true);
     Promise.all([
-      schedulingRepository.getDataset(),
-      schedulingRepository.getExtraClassRequests(),
-      schedulingRepository.getTeacherExchangeRequests(),
-    ]).then(([d, exReqs, exchReqs]) => {
-      setDataset(d);
-      setExtraRequests(exReqs);
-      setExchangeRequests(exchReqs);
-      setLoading(false);
-    });
+      schedulingRepository.getDataset().catch(() => SYNAPSE_SEED_DATA),
+      schedulingRepository.getExtraClassRequests().catch(() => SYNAPSE_SEED_DATA.extraClassRequests),
+      schedulingRepository.getTeacherExchangeRequests().catch(() => SYNAPSE_SEED_DATA.teacherExchangeRequests),
+    ])
+      .then(([d, exReqs, exchReqs]) => {
+        setDataset(d || SYNAPSE_SEED_DATA);
+        setExtraRequests(exReqs || SYNAPSE_SEED_DATA.extraClassRequests);
+        setExchangeRequests(exchReqs || SYNAPSE_SEED_DATA.teacherExchangeRequests);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Failed to load analytics data:", err);
+        setDataset(SYNAPSE_SEED_DATA);
+        setExtraRequests(SYNAPSE_SEED_DATA.extraClassRequests);
+        setExchangeRequests(SYNAPSE_SEED_DATA.teacherExchangeRequests);
+        setLoading(false);
+      });
   }, []);
 
   if (!mounted || !dataset || loading) {

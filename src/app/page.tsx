@@ -144,22 +144,22 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* ── A. Page Heading (Clear Greeting & Scheduling Status) ── */}
+      {/* ── A. Page Heading (Compact Title & Operational Status) ── */}
       <PageHeader
-        title="Welcome back, Dr. Eleanor Vance"
-        description="Fall 2026 academic timetable is 97.4% allocated. 3 unresolved room conflicts require coordinator review before final publishing."
+        title="Academic Operations Overview"
+        description={`Fall 2026 Academic Term • ${metrics.scheduledClasses.count.toLocaleString()} of ${metrics.scheduledClasses.total.toLocaleString()} curriculum classes scheduled (${metrics.scheduledClasses.percentage}%). ${metrics.unresolvedConflicts.count} unresolved conflicts flagged for coordinator review.`}
         breadcrumbs={[
           { label: "Timora" },
           { label: "Academic Operations" },
-          { label: "Dashboard" },
+          { label: "Overview" },
         ]}
         badge={
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" size="sm" className="bg-slate-50 border-slate-200 text-slate-600 font-normal">
-              Demo Dataset: Timora Institute of Technology
+          <div className="flex items-center gap-1.5">
+            <Badge variant="success" size="sm" dot className="font-medium text-[11px]">
+              Term Active • Draft v2.4
             </Badge>
-            <Badge variant="success" size="sm" dot>
-              Term Active
+            <Badge variant="outline" size="sm" className="bg-slate-50 border-slate-200 text-slate-500 font-normal text-[10.5px] py-0 hidden sm:inline-flex">
+              Timora Institute
             </Badge>
           </div>
         }
@@ -169,7 +169,7 @@ export default function DashboardPage() {
               variant="outline"
               size="sm"
               onClick={handleRunScan}
-              className="gap-1.5 border-slate-200"
+              className="gap-1.5 border-slate-200 text-xs h-8"
             >
               <RefreshCw className="h-3.5 w-3.5 text-slate-500" />
               <span>Run Pre-flight Scan</span>
@@ -179,7 +179,7 @@ export default function DashboardPage() {
               variant="default"
               size="sm"
               onClick={() => setPublishDialogOpen(true)}
-              className="gap-1.5"
+              className="gap-1.5 text-xs h-8 shadow-xs"
             >
               <CalendarCheck className="h-3.5 w-3.5" />
               <span>Publish Timetable</span>
@@ -232,6 +232,8 @@ export default function DashboardPage() {
         {/* Right: Quick Actions Shortcuts (1 col) */}
         <div className="lg:col-span-1">
           <QuickActions
+            activeConflictsCount={metrics.unresolvedConflicts.count}
+            availableRoomsCount={metrics.availableRooms.available}
             onOpenTimetableStudio={() => router.push("/timetable")}
             onOpenExportTimetable={() => router.push("/timetable")}
             onOpenResolveConflicts={() => {
@@ -280,7 +282,7 @@ export default function DashboardPage() {
         open={publishDialogOpen}
         onOpenChange={setPublishDialogOpen}
         title="Publish Fall 2026 Academic Timetable?"
-        description="Publishing will lock room allocations and notify faculty, department heads, and students. There are currently 3 unresolved room conflicts that will be flagged as pending."
+        description={`Publishing will lock room allocations and notify faculty, department heads, and students. There are currently ${metrics.unresolvedConflicts.count} unresolved room conflicts that will be flagged as pending.`}
         confirmLabel="Confirm & Publish Timetable"
         cancelLabel="Keep as Draft"
         variant="warning"

@@ -87,10 +87,10 @@ export function WeeklyScheduleOverview() {
                     {item.subjectCode}
                   </span>
                   <span
-                    className={`text-[9px] px-1.5 py-0.2 rounded font-medium ${
+                    className={`text-[9px] px-1.5 py-0.2 rounded font-medium border ${
                       item.subjectType === "Laboratory"
-                        ? "bg-purple-100 text-purple-700"
-                        : "bg-blue-50 text-blue-700"
+                        ? "bg-amber-50 text-amber-700 border-amber-200/60"
+                        : "bg-blue-50 text-blue-700 border-blue-200/60"
                     }`}
                   >
                     {item.subjectType}

@@ -75,8 +75,8 @@ describe("PHASE 2 Dashboard Components", () => {
     it("provides stable demo KPI metrics without invented growth percentages", async () => {
       const m = await schedulingRepository.getKpiMetrics();
       expect(m.scheduledClasses.count).toBe(1284);
-      expect(m.unresolvedConflicts.count).toBe(3);
-      expect(m.availableRooms.available).toBe(42);
+      expect(m.unresolvedConflicts.count).toBe(5);
+      expect(m.availableRooms.available).toBe(11);
       expect(m.roomUtilisation.rate).toBe(86.2);
       expect(m.pendingApprovals.count).toBe(7);
     });
@@ -104,7 +104,7 @@ describe("PHASE 2 Dashboard Components", () => {
       expect(screen.getByText("Scheduled Classes")).toBeInTheDocument();
       expect(screen.getByText("1,284")).toBeInTheDocument();
 
-      expect(screen.getByText("Unresolved Conflicts")).toBeInTheDocument();
+      expect(screen.getByText("Active Conflicts")).toBeInTheDocument();
       expect(screen.getByText("3")).toBeInTheDocument();
 
       expect(screen.getByText("Available Rooms")).toBeInTheDocument();
@@ -121,7 +121,7 @@ describe("PHASE 2 Dashboard Components", () => {
       const handleConflictClick = vi.fn();
       render(<KpiRow metrics={mockMetrics} onConflictClick={handleConflictClick} />);
 
-      const conflictCard = screen.getByText("Unresolved Conflicts").closest("div");
+      const conflictCard = screen.getByText("Active Conflicts").closest("div");
       if (conflictCard) fireEvent.click(conflictCard);
       expect(handleConflictClick).toHaveBeenCalled();
     });

@@ -17,17 +17,31 @@ import {
   PieChart,
   Layers,
 } from "lucide-react";
-import { schedulingRepository, type RoomRecord } from "@/lib/repository/scheduling-repository";
+import { schedulingRepository, type RoomRecord, SEED_ROOMS } from "@/lib/repository/scheduling-repository";
 import { FindRoomModal } from "@/components/dashboard/modals/find-room-modal";
 
 export default function RoomsPage() {
-  const [rooms, setRooms] = React.useState<RoomRecord[]>([]);
+  const [rooms, setRooms] = React.useState<RoomRecord[]>(SEED_ROOMS);
   const [query, setQuery] = React.useState("");
   const [viewMode, setViewMode] = React.useState<"cards" | "table">("cards");
   const [modalOpen, setModalOpen] = React.useState(false);
 
   React.useEffect(() => {
-    schedulingRepository.getAvailableRooms(query).then((res) => setRooms(res));
+    schedulingRepository
+      .getAvailableRooms(query)
+      .then((res) => {
+        if (res && res.length > 0) {
+          setRooms(res);
+        } else if (!query) {
+          setRooms(SEED_ROOMS);
+        } else {
+          setRooms([]);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load rooms:", err);
+        setRooms(SEED_ROOMS);
+      });
   }, [query]);
 
   const availableCount = rooms.filter((r) => r.status === "Available").length;
