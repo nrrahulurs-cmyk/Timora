@@ -14,10 +14,23 @@ import {
   Layers,
   MapPin,
   GraduationCap,
+  Download,
+  FileText,
+  FileSpreadsheet,
+  File,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { Department, StudentSection, Classroom, FacultyMember } from "@/types/domain";
 
 export interface StudioFilters {
@@ -42,6 +55,8 @@ interface StudioToolbarProps {
   classrooms: Classroom[];
   faculty: FacultyMember[];
   totalFilteredCount: number;
+  onExport?: (format: "pdf" | "csv" | "excel") => void;
+  isExporting?: boolean;
 }
 
 export function StudioToolbar({
@@ -54,6 +69,8 @@ export function StudioToolbar({
   classrooms,
   faculty,
   totalFilteredCount,
+  onExport,
+  isExporting = false,
 }: StudioToolbarProps) {
   const [showAdvanced, setShowAdvanced] = React.useState(false);
 
@@ -229,35 +246,96 @@ export function StudioToolbar({
           )}
         </div>
 
-        {/* Right: View Switch (Grid / Table) */}
-        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-          <Button
-            variant={viewMode === "grid" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => onViewModeChange("grid")}
-            className={`h-7.5 px-3 text-xs gap-1.5 rounded-md ${
-              viewMode === "grid"
-                ? "bg-white text-[rgb(var(--color-primary))] shadow-xs font-semibold hover:bg-white"
-                : "text-slate-600 hover:text-slate-900 hover:bg-transparent"
-            }`}
-          >
-            <CalendarDays className="h-3.5 w-3.5" />
-            <span>Grid View</span>
-          </Button>
+        {/* Right: Export Menu & View Switch (Grid / Table) */}
+        <div className="flex items-center gap-2">
+          {/* Download & Export Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isExporting}
+                className="h-8.5 gap-1.5 border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+                id="timetable-export-button"
+              >
+                <Download className="h-3.5 w-3.5 text-[rgb(var(--color-primary))]" />
+                <span>{isExporting ? "Generating..." : "Export"}</span>
+                <ChevronDown className="h-3 w-3 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60 p-1.5">
+              <DropdownMenuLabel className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider py-1">
+                Download Weekly Timetable
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() => onExport?.("pdf")}
+                className="text-xs gap-2.5 cursor-pointer py-2 focus:bg-blue-50"
+              >
+                <div className="w-6 h-6 rounded bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center shrink-0">
+                  <FileText className="h-3.5 w-3.5" />
+                </div>
+                <div>
+                  <div className="font-semibold text-slate-800">Download PDF (.pdf)</div>
+                  <div className="text-[10px] text-slate-500">Landscape print-ready schedule</div>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => onExport?.("excel")}
+                className="text-xs gap-2.5 cursor-pointer py-2 focus:bg-blue-50"
+              >
+                <div className="w-6 h-6 rounded bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0">
+                  <FileSpreadsheet className="h-3.5 w-3.5" />
+                </div>
+                <div>
+                  <div className="font-semibold text-slate-800">Download Excel (.xlsx)</div>
+                  <div className="text-[10px] text-slate-500">Multi-sheet styled workbook</div>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => onExport?.("csv")}
+                className="text-xs gap-2.5 cursor-pointer py-2 focus:bg-blue-50"
+              >
+                <div className="w-6 h-6 rounded bg-blue-50 border border-blue-200 text-blue-700 flex items-center justify-center shrink-0">
+                  <File className="h-3.5 w-3.5" />
+                </div>
+                <div>
+                  <div className="font-semibold text-slate-800">Download CSV (.csv)</div>
+                  <div className="text-[10px] text-slate-500">UTF-8 compatible tabular data</div>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-          <Button
-            variant={viewMode === "table" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => onViewModeChange("table")}
-            className={`h-7.5 px-3 text-xs gap-1.5 rounded-md ${
-              viewMode === "table"
-                ? "bg-white text-[rgb(var(--color-primary))] shadow-xs font-semibold hover:bg-white"
-                : "text-slate-600 hover:text-slate-900 hover:bg-transparent"
-            }`}
-          >
-            <TableIcon className="h-3.5 w-3.5" />
-            <span>Table View</span>
-          </Button>
+          {/* View Switch (Grid / Table) */}
+          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+            <Button
+              variant={viewMode === "grid" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => onViewModeChange("grid")}
+              className={`h-7.5 px-3 text-xs gap-1.5 rounded-md ${
+                viewMode === "grid"
+                  ? "bg-white text-[rgb(var(--color-primary))] shadow-xs font-semibold hover:bg-white"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-transparent"
+              }`}
+            >
+              <CalendarDays className="h-3.5 w-3.5" />
+              <span>Grid View</span>
+            </Button>
+
+            <Button
+              variant={viewMode === "table" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => onViewModeChange("table")}
+              className={`h-7.5 px-3 text-xs gap-1.5 rounded-md ${
+                viewMode === "table"
+                  ? "bg-white text-[rgb(var(--color-primary))] shadow-xs font-semibold hover:bg-white"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-transparent"
+              }`}
+            >
+              <TableIcon className="h-3.5 w-3.5" />
+              <span>Table View</span>
+            </Button>
+          </div>
         </div>
       </div>
 

@@ -31,6 +31,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { activeDataSource } from "@/lib/repository/scheduling-repository";
+import { useAuth } from "@/lib/auth/auth-context";
 import type { UserRole } from "@/types/domain";
 
 interface TopbarProps {
@@ -39,9 +40,9 @@ interface TopbarProps {
 }
 
 export function Topbar({ onOpenMobileMenu, onSearchClick }: TopbarProps) {
+  const { user, role: activeRole, switchRole: setActiveRole, logout } = useAuth();
   const [academicPeriod, setAcademicPeriod] = React.useState("Fall 2026 (Odd Sem)");
   const [isDark, setIsDark] = React.useState(false);
-  const [activeRole, setActiveRole] = React.useState<UserRole>("academic_admin");
 
   const toggleTheme = () => {
     setIsDark((prev) => {
@@ -260,7 +261,7 @@ export function Topbar({ onOpenMobileMenu, onSearchClick }: TopbarProps) {
               </div>
               <div className="hidden md:flex flex-col text-left">
                 <span className="font-semibold text-slate-800 text-xs leading-none">
-                  Dr. Eleanor Vance
+                  {user?.fullName || "Dr. Eleanor Vance"}
                 </span>
                 <span className="text-[10px] text-slate-400 leading-tight capitalize">
                   {activeRole.replace("_", " ")}
@@ -273,10 +274,10 @@ export function Topbar({ onOpenMobileMenu, onSearchClick }: TopbarProps) {
             <DropdownMenuLabel>
               <div className="flex flex-col">
                 <span className="font-medium text-xs text-slate-900">
-                  Dr. Eleanor Vance
+                  {user?.fullName || "Dr. Eleanor Vance"}
                 </span>
                 <span className="text-[10px] text-slate-400 font-normal">
-                  e.vance@timora.edu
+                  {user?.email || "e.vance@timora.edu"}
                 </span>
                 <div className="flex items-center gap-1.5 mt-1">
                   <Badge variant="outline" size="sm" className="text-[10px] px-1.5 py-0 border-blue-200 text-blue-700 bg-blue-50">
@@ -343,7 +344,10 @@ export function Topbar({ onOpenMobileMenu, onSearchClick }: TopbarProps) {
               <HelpCircle className="h-3.5 w-3.5" /> Governance Guide
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2 text-xs text-red-600 focus:text-red-600 focus:bg-red-50">
+            <DropdownMenuItem
+              onClick={logout}
+              className="gap-2 text-xs text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer"
+            >
               <LogOut className="h-3.5 w-3.5" /> Sign Out
             </DropdownMenuItem>
           </DropdownMenuContent>

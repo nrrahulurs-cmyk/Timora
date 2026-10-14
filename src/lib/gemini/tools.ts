@@ -257,7 +257,8 @@ export async function executeSchedulingTool(
   const dataset = await schedulingRepository.getDataset();
 
   switch (toolName) {
-    case "searchAvailableRooms": {
+    case "searchAvailableRooms":
+    case "search_available_rooms": {
       const parsed = z
         .object({
           dayOfWeek: z.enum(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]),
@@ -357,7 +358,10 @@ export async function executeSchedulingTool(
       };
     }
 
-    case "checkFacultyAvailability": {
+    case "checkFacultyAvailability":
+    case "check_faculty_availability":
+    case "getFacultyAvailability":
+    case "get_faculty_availability": {
       const query = (args.facultyNameOrId as string).toLowerCase();
       const fac = dataset.faculty.find(
         (f) =>
@@ -413,7 +417,10 @@ export async function executeSchedulingTool(
       };
     }
 
-    case "findTimetableConflicts": {
+    case "findTimetableConflicts":
+    case "find_timetable_conflicts":
+    case "getTimetableConflicts":
+    case "get_timetable_conflicts": {
       const conflicts = await schedulingRepository.getConflicts(args.status);
       return {
         toolName,
@@ -436,7 +443,10 @@ export async function executeSchedulingTool(
       };
     }
 
-    case "findFeasibleTimeSlots": {
+    case "findFeasibleTimeSlots":
+    case "find_feasible_time_slots":
+    case "findFeasibleSlots":
+    case "find_feasible_slots": {
       const code = (args.courseCode as string).toUpperCase();
       const subject = dataset.subjects.find((s) => s.code === code || s.id.includes(code));
       if (!subject) {
@@ -474,7 +484,8 @@ export async function executeSchedulingTool(
       };
     }
 
-    case "previewScheduleChange": {
+    case "previewScheduleChange":
+    case "preview_schedule_change": {
       if (userRole === "student_viewer") {
         return {
           toolName,
@@ -561,7 +572,8 @@ export async function executeSchedulingTool(
       };
     }
 
-    case "proposeExtraClass": {
+    case "proposeExtraClass":
+    case "propose_extra_class": {
       const courseCode = args.courseCode as string;
       const roomCode = args.roomCode as string;
       const date = args.date as string;
@@ -620,7 +632,10 @@ export async function executeSchedulingTool(
       };
     }
 
-    case "proposeTeacherExchange": {
+    case "proposeTeacherExchange":
+    case "propose_teacher_exchange":
+    case "proposeClassExchange":
+    case "propose_class_exchange": {
       const requester = args.requesterFaculty as string;
       const target = args.targetFaculty as string;
       const date = args.date as string;
@@ -664,7 +679,10 @@ export async function executeSchedulingTool(
       };
     }
 
-    case "readSyllabusProgress": {
+    case "readSyllabusProgress":
+    case "read_syllabus_progress":
+    case "getSyllabusProgress":
+    case "get_syllabus_progress": {
       const modules = await schedulingRepository.getSyllabusModules();
       const progress = await schedulingRepository.getTopicProgress();
 

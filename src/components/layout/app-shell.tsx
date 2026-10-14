@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Search, Calendar, Users, Building, AlertTriangle, Sparkles } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { AskSynapseSheet } from "@/components/dashboard/modals/ask-synapse-sheet";
 
 interface AppShellProps {
@@ -21,6 +22,7 @@ interface AppShellProps {
 }
 
 export function AppShell({ children }: AppShellProps) {
+  const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -41,6 +43,16 @@ export function AppShell({ children }: AppShellProps) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  // If on login route, render children full-screen without app frame
+  if (pathname.startsWith("/login")) {
+    return (
+      <div className="min-h-screen w-screen bg-slate-50 font-sans antialiased text-slate-800">
+        {children}
+        <Toaster />
+      </div>
+    );
+  }
 
   const searchItems = [
     { label: "Timetable Grid", category: "Scheduling", href: "/timetable", icon: Calendar },

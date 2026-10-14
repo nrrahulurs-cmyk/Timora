@@ -233,6 +233,7 @@ export default function DashboardPage() {
         <div className="lg:col-span-1">
           <QuickActions
             onOpenTimetableStudio={() => router.push("/timetable")}
+            onOpenExportTimetable={() => router.push("/timetable")}
             onOpenResolveConflicts={() => {
               setSelectedAttentionItem(attentionItems[0] || null);
               setResolveModalOpen(true);

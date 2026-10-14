@@ -1,7 +1,9 @@
 /**
- * SYNAPSE OS — Server-Only Ask SYNAPSE Copilot Assistant
- * Integrates Google Gemini API with controlled tool calling, graceful offline
- * semantic fallback, and verified source citations.
+ * TIMORA ACADEMIC OS — Server-Only Ask Timora Copilot Assistant
+ * Integrates Google Gemini API with controlled tool calling, automated function
+ * call dispatching, multi-turn synthesis, and verified source citations.
+ * Enforces role-based permissions, zero arbitrary SQL, and the full
+ * Interpret -> Validate -> Preview -> Confirm -> Revalidate -> Commit lifecycle.
  */
 
 import { GoogleGenAI } from "@google/genai";
@@ -24,8 +26,9 @@ export interface AssistantResponse {
 
 /**
  * Intelligent deterministic semantic tool classifier for offline / fallback execution.
+ * Invokes the exact same validated application tools and constraint engine.
  */
-async function fallbackSemanticClassifier(
+export async function fallbackSemanticClassifier(
   message: string,
   userRole: UserRole
 ): Promise<AssistantResponse> {
@@ -114,6 +117,22 @@ async function fallbackSemanticClassifier(
     actionPreview = res.actionPreview;
 
     reply = `I have prepared a teacher exchange proposal between **Dr. Alan Turing** and **Prof. Ada Lovelace** for **Monday, Oct 26, 2026**.\n\nPre-flight validation confirms that neither instructor has conflicting commitments during these periods. Please confirm to initiate peer review.`;
+  } else if (lower.includes("slot") || lower.includes("feasible") || lower.includes("alternative")) {
+    const res = await executeSchedulingTool(
+      "findFeasibleTimeSlots",
+      {
+        courseCode: "CS-401",
+      },
+      userRole
+    );
+    toolResults.push(res);
+    if (res.sources) sources.push(...res.sources);
+
+    const slots = res.data?.feasibleSlots || [];
+    reply = `I evaluated alternative time slots for **CS-401** against cohort availability, instructor workload, and classroom capacities.\n\nFound **${slots.length} conflict-free feasible slots**, such as:\n${slots
+      .slice(0, 3)
+      .map((s: any) => `- **${s.dayOfWeek} ${s.startTime} – ${s.endTime}** in room ${s.roomCode} (Feasibility Score: ${s.feasibilityScore}/100)`)
+      .join("\n")}`;
   } else if (lower.includes("syllabus") || lower.includes("progress") || lower.includes("topic") || lower.includes("velocity")) {
     const res = await executeSchedulingTool("readSyllabusProgress", {}, userRole);
     toolResults.push(res);
@@ -148,7 +167,7 @@ async function fallbackSemanticClassifier(
       fac?.isAvailable ? "✓ **Free**" : "⚠️ **Occupied** (Conflicting session active)"
     }`;
   } else {
-    reply = `I am **Ask Timora**, your academic operations copilot. I am connected directly to our deterministic constraint engine, classroom databases, and curriculum delivery metrics.\n\nTry asking me to:\n- **"Search available lecture halls on Friday morning"**\n- **"Check current timetable conflicts"**\n- **"Propose an extra review class for CS-401"**\n- **"Show syllabus progress and pacing deficits"**\n- **"Check Dr. Sarah Lin's availability on Tuesday"**`;
+    reply = `I am **Ask Timora**, your academic operations copilot. I am connected directly to our deterministic constraint engine, classroom databases, and curriculum delivery metrics.\n\nTry asking me to:\n- **"Search available lecture halls on Friday morning"**\n- **"Check current timetable conflicts"**\n- **"Find feasible time slots for CS-401"**\n- **"Propose an extra review class for CS-401"**\n- **"Show syllabus progress and pacing deficits"**\n- **"Check Dr. Sarah Lin's availability on Tuesday"**`;
   }
 
   return {
@@ -161,9 +180,9 @@ async function fallbackSemanticClassifier(
 }
 
 /**
- * Main server-side assistant handler with Google GenAI integration and fallback.
+ * Main server-side assistant handler with Google GenAI integration and controlled tool loop.
  */
-export async function askSynapseCopilot(
+export async function askTimoraCopilot(
   message: string,
   conversationHistory: Array<{ role: string; content: string }> = [],
   userRole: UserRole = "academic_admin"
@@ -178,30 +197,124 @@ export async function askSynapseCopilot(
   try {
     const ai = new GoogleGenAI({ apiKey });
 
-    // Format prompt with system instructions
-    const systemPrompt = `You are Timora Copilot, an intelligent academic operations and timetable coordinator assistant.
-You have access to institutional tools for room availability, faculty calendars, timetable conflicts, schedule previews, and syllabus progress.
-CRITICAL RULES:
-1. Always use tool calling to retrieve verified facts from the database. Never make up room codes, hours, or conflicts.
-2. Read-only requests should return factual information immediately with clear numbers and room names.
-3. For destructive actions (moving sessions, extra classes, exchanges), invoke the propose or preview tool to produce an ActionPreview. Do not claim an action is saved until confirmed.
-4. Adhere to all institutional hard constraints (room double-booking, capacity, laboratory safety).`;
+    // Format prompt with strict system instructions
+    const systemPrompt = `You are Timora Copilot, an enterprise academic operations and timetable coordinator assistant.
+You have access to authoritative institutional tools for:
+- searchAvailableRooms: finding vacant classrooms
+- checkFacultyAvailability: checking instructor teaching duties
+- findTimetableConflicts: active schedule clashes and double-bookings
+- findFeasibleTimeSlots: finding conflict-free slots for courses
+- previewScheduleChange: simulating moves and checking ripple effects
+- proposeExtraClass: scheduling ad-hoc makeup sessions
+- proposeTeacherExchange: faculty peer-swap proposals
+- readSyllabusProgress: tracking curriculum delivery velocity
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [
-        { role: "user", parts: [{ text: `${systemPrompt}\n\nUser Request: ${message}` }] },
-      ],
+CRITICAL OPERATIONAL RULES:
+1. Always invoke the relevant tool to retrieve real data from the database. NEVER invent or hallucinate room codes, faculty names, or schedule clashes.
+2. Read-only inquiries must return verified facts immediately.
+3. Schedule changes and extra classes MUST invoke the preview/propose tool to generate an ActionPreview awaiting explicit user confirmation.
+4. Respect role restrictions: student_viewer cannot propose or modify schedules.`;
+
+    // Prepare contents array with history
+    const contents: any[] = [];
+    if (conversationHistory && conversationHistory.length > 0) {
+      for (const turn of conversationHistory.slice(-4)) {
+        contents.push({
+          role: turn.role === "assistant" ? "model" : "user",
+          parts: [{ text: turn.content }],
+        });
+      }
+    }
+    contents.push({
+      role: "user",
+      parts: [{ text: message }],
     });
 
-    const candidate = response.candidates?.[0];
-    const textReply = candidate?.content?.parts?.[0]?.text;
+    // Invoke Gemini with functionDeclarations
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents,
+      config: {
+        systemInstruction: systemPrompt,
+        tools: [{ functionDeclarations: SYNAPSE_TOOL_DECLARATIONS as any }],
+        temperature: 0.1,
+      },
+    });
 
-    if (textReply && textReply.trim()) {
-      // Enhance text with factual tools if relevant
+    // Check if the model requested function execution
+    const functionCalls = response.functionCalls || [];
+
+    if (functionCalls.length > 0) {
+      const toolResults: ToolExecutionResult[] = [];
+      const sources: Array<{ type: string; id: string; label: string }> = [];
+      let actionPreview: ActionPreviewPayload | undefined;
+      let functionResponses: any[] = [];
+
+      for (const call of functionCalls) {
+        const toolName = call.name || "";
+        const toolArgs = (call.args as Record<string, any>) || {};
+
+        const result = await executeSchedulingTool(toolName, toolArgs, userRole);
+        toolResults.push(result);
+        if (result.sources) sources.push(...result.sources);
+        if (result.actionPreview) actionPreview = result.actionPreview;
+
+        functionResponses.push({
+          functionResponse: {
+            name: toolName,
+            response: { output: result.data || result.actionPreview || { success: result.success } },
+          },
+        });
+      }
+
+      // Second turn: pass tool execution outputs back to Gemini for grounded answer synthesis
+      try {
+        const candidateParts = response.candidates?.[0]?.content?.parts || [];
+        const synthesisResponse = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: [
+            ...contents,
+            { role: "model", parts: candidateParts },
+            { role: "user", parts: functionResponses },
+          ],
+          config: {
+            systemInstruction: systemPrompt,
+            temperature: 0.2,
+          },
+        });
+
+        const finalReply = synthesisResponse.text || synthesisResponse.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (finalReply && finalReply.trim()) {
+          return {
+            reply: finalReply.trim(),
+            toolResults,
+            actionPreview,
+            sources,
+            provider: "gemini-api",
+          };
+        }
+      } catch (synthErr) {
+        console.warn("Second-turn Gemini synthesis failed, using tool result formatting:", synthErr);
+      }
+
+      // If synthesis response was empty, generate deterministic summary of toolResults
       const fallback = await fallbackSemanticClassifier(message, userRole);
       return {
-        reply: textReply,
+        reply: fallback.reply,
+        toolResults,
+        actionPreview: actionPreview || fallback.actionPreview,
+        sources: sources.length > 0 ? sources : fallback.sources,
+        provider: "gemini-api",
+      };
+    }
+
+    // Direct text response without tool call
+    const directText = response.text || response.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (directText && directText.trim()) {
+      // Check if user asked a data-intensive question that should have tool data
+      const fallback = await fallbackSemanticClassifier(message, userRole);
+      return {
+        reply: directText.trim(),
         toolResults: fallback.toolResults,
         actionPreview: fallback.actionPreview,
         sources: fallback.sources,
@@ -210,10 +323,12 @@ CRITICAL RULES:
     }
 
     return fallbackSemanticClassifier(message, userRole);
-  } catch (err) {
-    console.warn("Gemini API call failed, falling back to deterministic copilot:", err);
+  } catch (err: any) {
+    console.warn("Gemini API call failed, falling back to deterministic copilot:", err?.message || err);
     return fallbackSemanticClassifier(message, userRole);
   }
 }
 
+// Backward-compatible alias
+export const askSynapseCopilot = askTimoraCopilot;
 export { commitConfirmedAction };

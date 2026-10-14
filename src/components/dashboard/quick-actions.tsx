@@ -8,6 +8,7 @@ import {
   CalendarPlus,
   Sparkles,
   ChevronRight,
+  Download,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,7 @@ interface QuickActionsProps {
   onOpenFindRoom: () => void;
   onOpenScheduleExtraClass: () => void;
   onOpenAskSynapse: () => void;
+  onOpenExportTimetable?: () => void;
 }
 
 export function QuickActions({
@@ -26,6 +28,7 @@ export function QuickActions({
   onOpenFindRoom,
   onOpenScheduleExtraClass,
   onOpenAskSynapse,
+  onOpenExportTimetable,
 }: QuickActionsProps) {
   const actions = [
     {
@@ -36,6 +39,16 @@ export function QuickActions({
       iconBg: "bg-blue-50 border-blue-200/60",
       onClick: onOpenTimetableStudio,
       badge: "Core",
+    },
+    {
+      title: "Export Timetable",
+      description: "Download weekly schedules in PDF, Excel (.xlsx) and CSV formats",
+      icon: Download,
+      iconColor: "text-indigo-600",
+      iconBg: "bg-indigo-50 border-indigo-200/60",
+      onClick: onOpenExportTimetable || onOpenTimetableStudio,
+      badge: "PDF • XLSX",
+      badgeVariant: "secondary" as const,
     },
     {
       title: "Resolve Conflicts",
@@ -84,7 +97,7 @@ export function QuickActions({
           <CardTitle className="text-base font-semibold text-[rgb(var(--color-text-heading))]">
             Quick Actions
           </CardTitle>
-          <span className="text-[11px] text-slate-400 font-mono">5 Shortcuts</span>
+          <span className="text-[11px] text-slate-400 font-mono">6 Shortcuts</span>
         </div>
         <CardDescription className="text-xs text-[rgb(var(--color-text-secondary))]">
           Immediate shortcuts for daily academic scheduling operations.

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { ChevronRight, GraduationCap, Building, Layers } from "lucide-react";
 import { useToast } from "@/components/feedback/use-toast";
 import { schedulingRepository } from "@/lib/repository/scheduling-repository";
 import { SYNAPSE_SEED_DATA } from "@/data/fixtures";
@@ -19,6 +20,14 @@ import { SessionDetailSheet } from "@/components/timetable/session-detail-sheet"
 import { MoveSessionModal } from "@/components/timetable/move-session-modal";
 import { PublishDialog } from "@/components/timetable/publish-dialog";
 import type { EnrichedSession } from "@/components/timetable/class-card";
+import {
+  buildExportRows,
+  generateTimetableCsv,
+  generateTimetableExcel,
+  generateTimetablePdf,
+  downloadFile,
+  type ExportMetadata,
+} from "@/lib/export/timetable-export-service";
 
 interface StagedMove {
   sessionId: string;
@@ -61,6 +70,7 @@ export default function TimetableStudioPage() {
   const [selectedSession, setSelectedSession] = React.useState<EnrichedSession | null>(null);
   const [movingSession, setMovingSession] = React.useState<EnrichedSession | null>(null);
   const [publishDialogOpen, setPublishDialogOpen] = React.useState(false);
+  const [isExporting, setIsExporting] = React.useState(false);
 
   // Load latest dataset from repository
   const loadData = React.useCallback(async () => {
@@ -307,8 +317,112 @@ export default function TimetableStudioPage() {
     });
   };
 
+  // Weekly timetable download handler for PDF, CSV, and Excel (.xlsx)
+  const handleExport = async (format: "pdf" | "csv" | "excel") => {
+    setIsExporting(true);
+    try {
+      const activeDept = dataset.departments.find((d) => d.id === filters.departmentId);
+      const activeSec = dataset.sections.find((s) => s.id === filters.sectionId);
+      const weekNumber = 9 + filters.weekOffset;
+      const weekLabel = `Week ${weekNumber}`;
+
+      const metadata: ExportMetadata = {
+        institutionName: "Timora Institute of Technology",
+        academicTerm: "Fall 2026 (Odd Semester)",
+        weekLabel: `Week ${weekNumber} (Oct 19 – Oct 24, 2026)`,
+        departmentName: activeDept?.name,
+        sectionCode: activeSec?.sectionCode,
+        generatedAt: new Date().toLocaleString(),
+        generatedBy: "Dr. Eleanor Vance",
+        isDraft: true,
+        version: "v2.4-preview",
+      };
+
+      const exportRows = buildExportRows(
+        filteredSessions.map((f) => f.session),
+        dataset.subjects,
+        dataset.classrooms,
+        dataset.faculty,
+        dataset.sections,
+        dataset.timeSlots,
+        dataset.conflicts
+      );
+
+      const baseName = `Timora_Timetable_${weekLabel.replace(/\s+/g, "_")}${
+        activeSec ? `_${activeSec.sectionCode}` : activeDept ? `_${activeDept.code}` : "_All"
+      }`;
+
+      if (format === "csv") {
+        const csvContent = generateTimetableCsv(exportRows, metadata);
+        downloadFile(csvContent, `${baseName}.csv`, "text/csv;charset=utf-8;");
+        toast({
+          title: "CSV Export Complete",
+          description: `Exported ${exportRows.length} timetable records to ${baseName}.csv`,
+          variant: "success",
+        });
+      } else if (format === "excel") {
+        const excelBuffer = await generateTimetableExcel(exportRows, metadata);
+        downloadFile(
+          excelBuffer as any,
+          `${baseName}.xlsx`,
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
+        toast({
+          title: "Excel (.xlsx) Export Complete",
+          description: `Generated multi-sheet formatted workbook ${baseName}.xlsx`,
+          variant: "success",
+        });
+      } else if (format === "pdf") {
+        const pdfBuffer = generateTimetablePdf(exportRows, metadata);
+        downloadFile(pdfBuffer as any, `${baseName}.pdf`, "application/pdf");
+        toast({
+          title: "PDF Export Complete",
+          description: `Print-ready landscape PDF ${baseName}.pdf downloaded.`,
+          variant: "success",
+        });
+      }
+    } catch (err: any) {
+      console.error("Export generation error:", err);
+      toast({
+        title: "Export Failed",
+        description: err?.message || "Failed to generate timetable export.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const selectedDepartment = dataset.departments.find((d) => d.id === filters.departmentId);
+  const selectedSection = dataset.sections.find((s) => s.id === filters.sectionId);
+
   return (
-    <div className="space-y-5 pb-14">
+    <div className="space-y-4 pb-14">
+      {/* ── Hierarchical Academic Breadcrumb Navigation (Reference Composition) ─── */}
+      <div className="flex flex-wrap items-center gap-1.5 px-3 py-2 bg-white rounded-lg border border-slate-200/80 text-xs text-slate-600 shadow-2xs">
+        <div className="flex items-center gap-1 font-semibold text-slate-800">
+          <Building className="h-3.5 w-3.5 text-[rgb(var(--color-primary))]" />
+          <span>Faculty of Engineering</span>
+        </div>
+        <ChevronRight className="h-3.5 w-3.5 text-slate-300" />
+        <div className="flex items-center gap-1 font-medium text-slate-700">
+          <span>{selectedDepartment?.name || "All Engineering Depts"}</span>
+        </div>
+        <ChevronRight className="h-3.5 w-3.5 text-slate-300" />
+        <div className="flex items-center gap-1 text-slate-500">
+          <span>Fall 2026 (Odd Sem)</span>
+        </div>
+        <ChevronRight className="h-3.5 w-3.5 text-slate-300" />
+        <div className="flex items-center gap-1 font-medium text-slate-700">
+          <span>{filters.semester !== "all" ? `Semester ${filters.semester}` : "All Semesters"}</span>
+        </div>
+        <ChevronRight className="h-3.5 w-3.5 text-slate-300" />
+        <div className="flex items-center gap-1 font-bold text-[rgb(var(--color-primary))] bg-blue-50 px-2 py-0.5 rounded border border-blue-200/60">
+          <GraduationCap className="h-3 w-3 text-[rgb(var(--color-primary))]" />
+          <span>{selectedSection ? `${selectedSection.sectionCode} (${selectedSection.name})` : "All Cohort Sections"}</span>
+        </div>
+      </div>
+
       {/* ── Studio Header: Title, Versions, Clashes, Grouped Actions ──────── */}
       <StudioHeader
         scheduleVersion="v2.4-preview"
@@ -333,6 +447,8 @@ export default function TimetableStudioPage() {
         classrooms={dataset.classrooms}
         faculty={dataset.faculty}
         totalFilteredCount={filteredSessions.length}
+        onExport={handleExport}
+        isExporting={isExporting}
       />
 
       {/* ── Main View Area: Grid View or Table View ──────────────────────── */}

@@ -112,7 +112,7 @@ export function AskSynapseSheet({
     }, 400);
 
     try {
-      const res = await fetch("/api/ask-synapse", {
+      const res = await fetch("/api/ask-timora", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -162,7 +162,7 @@ export function AskSynapseSheet({
   const handleConfirmAction = async (msgId: string, confirmationToken: string) => {
     setCommittingToken(confirmationToken);
     try {
-      const res = await fetch("/api/ask-synapse", {
+      const res = await fetch("/api/ask-timora", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
