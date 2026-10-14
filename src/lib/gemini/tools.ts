@@ -741,18 +741,38 @@ export async function commitConfirmedAction(
   try {
     const raw = Buffer.from(confirmationToken, "base64").toString("utf-8");
     const payload = JSON.parse(raw);
+    const dataset = await schedulingRepository.getDataset();
 
     if (payload.type === "EXTRA_CLASS") {
+      const subject = dataset.subjects.find(
+        (s) => s.code === payload.courseCode || s.id === payload.courseCode
+      );
+      const room = dataset.classrooms.find(
+        (c) => c.code === payload.roomCode || c.id === payload.roomCode
+      );
+      const faculty = dataset.faculty.find(
+        (f) => f.id === "FAC-VANCE" || f.name.includes("Vance")
+      ) || dataset.faculty[0];
+
+      const slot = dataset.timeSlots.find(
+        (t) => t.startTime === "10:00" && t.dayOfWeek === "Saturday"
+      ) || dataset.timeSlots[0];
+
+      const section = dataset.sections.find(
+        (s) => s.id === "SEC-CSE-S5-A" || s.sectionCode === "CSE-S5-A"
+      ) || dataset.sections[0];
+
       const created = await schedulingRepository.createExtraClassRequest({
-        facultyId: "FAC-VANCE",
-        subjectId: payload.courseCode,
-        sectionId: "SEC-CSE-S5-A",
-        classroomId: payload.roomCode,
-        timeSlotId: "SLOT-MON-1",
-        scheduledDate: payload.date,
-        reason: payload.reason,
+        facultyId: faculty?.id || "FAC-VANCE",
+        subjectId: subject?.id || "SUB-CS401",
+        sectionId: section?.id || "SEC-CSE-S5-A",
+        classroomId: room?.id || "ROOM-LH-101",
+        timeSlotId: slot?.id || "SLOT-MON-1",
+        scheduledDate: payload.date || "2026-10-24",
+        reason: payload.reason || "Extra session",
         status: "pending_hod",
       });
+
       return {
         success: true,
         message: `Extra class for ${payload.courseCode} on ${payload.date} successfully submitted for HOD review.`,
@@ -761,8 +781,6 @@ export async function commitConfirmedAction(
     }
 
     if (payload.type === "SCHEDULE_CHANGE") {
-      // Re-validate fresh
-      const dataset = await schedulingRepository.getDataset();
       const session = dataset.timetableSessions.find((s) => s.id === payload.sessionId);
       if (!session) throw new Error(`Session ${payload.sessionId} not found`);
 
@@ -790,19 +808,28 @@ export async function commitConfirmedAction(
     }
 
     if (payload.type === "TEACHER_EXCHANGE") {
+      const reqFaculty = dataset.faculty.find(
+        (f) => f.name.includes(payload.requesterFaculty) || f.id === payload.requesterFaculty
+      ) || dataset.faculty[0];
+
+      const tgtFaculty = dataset.faculty.find(
+        (f) => f.name.includes(payload.targetFaculty) || f.id === payload.targetFaculty
+      ) || dataset.faculty[1] || dataset.faculty[0];
+
       const created = await schedulingRepository.createTeacherExchangeRequest({
-        requesterFacultyId: payload.requester,
-        requesterSessionId: "SESS-CS401-MON",
-        targetFacultyId: payload.target,
-        targetSessionId: "SESS-ECE305-MON",
-        date: payload.date,
-        reason: payload.reason,
+        requesterFacultyId: reqFaculty.id,
+        requesterSessionId: payload.requesterSessionId || "SESS-CS401-MON",
+        targetFacultyId: tgtFaculty.id,
+        targetSessionId: payload.targetSessionId || "SESS-ECE305-MON",
+        date: payload.date || "2026-10-26",
+        reason: payload.reason || "Peer substitution",
         status: "pending_hod",
         isPeerAccepted: false,
       });
+
       return {
         success: true,
-        message: `Teacher exchange request between ${payload.requester} and ${payload.target} submitted.`,
+        message: `Teacher exchange request between ${payload.requesterFaculty} and ${payload.targetFaculty} submitted for review.`,
         recordId: created.id,
       };
     }

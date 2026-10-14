@@ -74,9 +74,9 @@ export function QuickActions({
     },
     {
       title: "Ask Timora",
-      description: "AI scheduling copilot",
+      description: "Timo AI companion",
       icon: Sparkles,
-      badge: "Gemini",
+      badge: "Timo AI",
       badgeVariant: "default" as const,
       onClick: onOpenAskSynapse,
     },

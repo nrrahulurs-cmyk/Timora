@@ -22,7 +22,7 @@ import { QuickActions } from "@/components/dashboard/quick-actions";
 import { FindRoomModal } from "@/components/dashboard/modals/find-room-modal";
 import { ScheduleExtraClassModal } from "@/components/dashboard/modals/schedule-extra-class-modal";
 import { ResolveConflictModal } from "@/components/dashboard/modals/resolve-conflict-modal";
-import { AskSynapseSheet } from "@/components/dashboard/modals/ask-synapse-sheet";
+import { TimoWorkspaceModal } from "@/components/companion/timo-workspace-modal";
 import {
   schedulingRepository,
   type KpiMetrics,
@@ -268,7 +268,7 @@ export default function DashboardPage() {
         onResolved={handleConflictResolved}
       />
 
-      <AskSynapseSheet
+      <TimoWorkspaceModal
         open={askSynapseOpen}
         onOpenChange={setAskSynapseOpen}
       />

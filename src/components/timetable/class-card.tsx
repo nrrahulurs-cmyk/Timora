@@ -76,7 +76,7 @@ export function ClassCard({
     if (isConflicted) {
       return {
         bg: "bg-rose-50/80 hover:bg-rose-50",
-        border: "border-rose-200/80",
+        border: "border-rose-200/80 border-l-[3.5px] border-l-rose-500",
         textTitle: "text-rose-900",
         textSub: "text-rose-600",
         dot: "bg-rose-500",
@@ -86,7 +86,7 @@ export function ClassCard({
     if (isStaged) {
       return {
         bg: "bg-amber-50/80",
-        border: "border-amber-300 border-dashed",
+        border: "border-amber-300 border-dashed border-l-[3.5px] border-l-amber-500",
         textTitle: "text-amber-950",
         textSub: "text-amber-700",
         dot: "bg-amber-500",
@@ -99,7 +99,7 @@ export function ClassCard({
     if (code.includes("MATH") || code.includes("ALG") || type === "Lecture") {
       return {
         bg: "bg-[#E8F8F0]/80 hover:bg-[#E8F8F0]",
-        border: "border-[#D1F2E2]",
+        border: "border-[#D1F2E2] border-l-[3.5px] border-l-emerald-500",
         textTitle: "text-emerald-900",
         textSub: "text-emerald-700",
         dot: "bg-emerald-500",
@@ -109,7 +109,7 @@ export function ClassCard({
     if (code.includes("OS") || code.includes("CS") || code.includes("SOFT")) {
       return {
         bg: "bg-[#F0EEFF]/80 hover:bg-[#F0EEFF]",
-        border: "border-[#E1DEFF]",
+        border: "border-[#E1DEFF] border-l-[3.5px] border-l-indigo-500",
         textTitle: "text-[#312E81]",
         textSub: "text-[#4F46E5]",
         dot: "bg-[#5B4DF5]",
@@ -119,7 +119,7 @@ export function ClassCard({
     if (code.includes("DB") || code.includes("NET") || code.includes("ARCH")) {
       return {
         bg: "bg-[#EBF5FF]/80 hover:bg-[#EBF5FF]",
-        border: "border-[#D6EBFF]",
+        border: "border-[#D6EBFF] border-l-[3.5px] border-l-sky-500",
         textTitle: "text-sky-900",
         textSub: "text-sky-700",
         dot: "bg-sky-500",
@@ -129,7 +129,7 @@ export function ClassCard({
     if (code.includes("AI") || code.includes("ML") || type === "Laboratory") {
       return {
         bg: "bg-[#FEF8E7]/80 hover:bg-[#FEF8E7]",
-        border: "border-[#FDEFC9]",
+        border: "border-[#FDEFC9] border-l-[3.5px] border-l-amber-500",
         textTitle: "text-amber-950",
         textSub: "text-amber-800",
         dot: "bg-amber-500",
@@ -138,7 +138,7 @@ export function ClassCard({
     }
     return {
       bg: "bg-slate-50/80 hover:bg-slate-50",
-      border: "border-slate-200/80",
+      border: "border-slate-200/80 border-l-[3.5px] border-l-slate-400",
       textTitle: "text-slate-900",
       textSub: "text-slate-600",
       dot: "bg-slate-400",

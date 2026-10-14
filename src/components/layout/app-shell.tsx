@@ -12,7 +12,8 @@ import {
 import { Search, Calendar, Users, Building, AlertTriangle, Sparkles, Menu } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AskSynapseSheet } from "@/components/dashboard/modals/ask-synapse-sheet";
+import { TimoLauncher } from "@/components/companion/timo-launcher";
+import { TimoWorkspaceModal } from "@/components/companion/timo-workspace-modal";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -176,21 +177,15 @@ export function AppShell({ children }: AppShellProps) {
         </DialogContent>
       </Dialog>
 
-      {/* ── Global Floating Ask Timora Copilot Launcher (⌘J) ────────── */}
-      <button
-        onClick={() => setCopilotOpen(true)}
-        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-4 py-2.5 rounded-full shadow-lg hover:shadow-xl transition-all group active:scale-95 border border-white/20"
-        title="Open Ask Timora Copilot (⌘J)"
-      >
-        <Sparkles className="h-3.5 w-3.5 text-amber-300 animate-pulse" />
-        <span className="tracking-wide">Ask Timora</span>
-        <span className="hidden sm:inline-block text-[10px] bg-white/20 px-1.5 py-0.2 rounded-full font-mono text-white/90">
-          ⌘J
-        </span>
-      </button>
+      {/* ── Global Floating Timo AI Companion Launcher (⌘J) ────────── */}
+      <TimoLauncher
+        isOpen={copilotOpen}
+        onClick={() => setCopilotOpen((prev) => !prev)}
+        activeConflictCount={5}
+      />
 
-      {/* ── Global Ask Timora Copilot Drawer ────────────────────────── */}
-      <AskSynapseSheet open={copilotOpen} onOpenChange={setCopilotOpen} />
+      {/* ── Global Timo AI Companion Workspace Modal ───────────────── */}
+      <TimoWorkspaceModal open={copilotOpen} onOpenChange={setCopilotOpen} />
 
       {/* ── Global Toast Notifications ──────────────────────────────── */}
       <Toaster />

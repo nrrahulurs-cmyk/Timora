@@ -90,8 +90,18 @@ export function GridView({
           <tbody className="divide-y divide-slate-100 text-xs">
             {SLOT_DEFINITIONS.map((def) => (
               <tr key={def.index} className="group hover:bg-slate-50/20 transition-colors">
-                {/* Time slot label (Left column) */}
-                <td className="py-4 pl-3 pr-2 align-top w-36">
+                {/* Time slot label (Left column - Inspired by Reference Screenshot 3) */}
+                <td className="py-4 pl-3 pr-2 align-top w-36 relative">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                      def.index === 2 ? "text-primary-coral font-extrabold" : "text-slate-400"
+                    }`}>
+                      Slot {def.index}
+                    </span>
+                    {def.index === 2 && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary-coral animate-ping" />
+                    )}
+                  </div>
                   <div className="text-sm font-bold text-slate-800 tracking-tight font-sans">
                     {def.label.split(" ")[0]}
                   </div>
@@ -110,10 +120,18 @@ export function GridView({
                   const isDoubleBooked = cellSessions.length > 1;
 
                   return (
-                    <td key={day} className="p-2 align-top min-h-[120px]">
+                    <td key={day} className="p-2 align-top min-h-[120px] relative">
+                      {/* Active Slot Time Indicator Bar (Slot 2 / Tuesday Active) */}
+                      {def.index === 2 && day === "Tuesday" && (
+                        <div className="absolute -top-1 left-0 right-0 z-20 flex items-center pointer-events-none">
+                          <span className="w-2.5 h-2.5 rounded-full bg-primary-coral border-2 border-white shadow-xs -ml-1 shrink-0" />
+                          <div className="h-0.5 w-full bg-primary-coral/80 shadow-xs" />
+                        </div>
+                      )}
+
                       {/* Double-booking warning banner */}
                       {isDoubleBooked && (
-                        <div className="mb-2 px-2 py-1 rounded-xl bg-rose-100/80 text-rose-800 text-[10px] font-bold flex items-center gap-1.5 border border-rose-300">
+                        <div className="mb-2 px-2 py-1 rounded-xl bg-rose-100/80 text-rose-800 text-[10px] font-bold flex items-center gap-1.5 border border-rose-300 shadow-2xs">
                           <AlertCircle className="h-3 w-3 shrink-0 text-rose-600" />
                           <span>Clash ({cellSessions.length} Classes)</span>
                         </div>
@@ -136,10 +154,10 @@ export function GridView({
                         <button
                           type="button"
                           onClick={() => onEmptySlotClick?.(day, def.index)}
-                          className="w-full h-full min-h-[105px] rounded-2xl border border-dashed border-slate-200 hover:border-slate-300 flex items-center justify-center p-3 text-slate-300 hover:text-slate-500 hover:bg-slate-50/50 transition cursor-pointer group/btn"
-                          title={`Schedule slot on ${day}`}
+                          className="w-full h-full min-h-[105px] rounded-2xl border border-dashed border-slate-200/80 hover:border-slate-400 flex items-center justify-center p-3 text-slate-300 hover:text-slate-600 bg-[repeating-linear-gradient(45deg,rgba(248,250,252,0.65),rgba(248,250,252,0.65)_6px,rgba(241,245,249,0.65)_6px,rgba(241,245,249,0.65)_12px)] hover:bg-slate-50/80 transition cursor-pointer group/btn shadow-2xs"
+                          title={`Schedule slot on ${day} (${def.label})`}
                         >
-                          <span className="text-xl font-light leading-none text-slate-300 group-hover/btn:text-slate-500 transition-colors">
+                          <span className="w-7 h-7 rounded-full bg-white/80 border border-slate-200 flex items-center justify-center text-sm font-light text-slate-400 group-hover/btn:text-slate-700 group-hover/btn:scale-110 group-hover/btn:border-slate-300 transition-all shadow-2xs">
                             +
                           </span>
                         </button>
