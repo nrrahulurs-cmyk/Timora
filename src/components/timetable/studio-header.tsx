@@ -8,8 +8,10 @@ import {
   Save,
   CalendarCheck,
   AlertTriangle,
-  RotateCw,
   GitBranch,
+  Search,
+  Plus,
+  ChevronRight,
 } from "lucide-react";
 
 interface StudioHeaderProps {
@@ -21,6 +23,8 @@ interface StudioHeaderProps {
   onSave: () => void;
   onPublish: () => void;
   onReset: () => void;
+  onNewSession?: () => void;
+  onSearchClick?: () => void;
   isSaving?: boolean;
 }
 
@@ -33,14 +37,22 @@ export function StudioHeader({
   onSave,
   onPublish,
   onReset,
+  onNewSession,
+  onSearchClick,
   isSaving = false,
 }: StudioHeaderProps) {
   return (
-    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[rgb(var(--color-border-default))]">
-      {/* ── Title, Description & Status Badges ──────────────────────────── */}
-      <div className="space-y-1.5">
+    <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100/90 mb-4 shrink-0">
+      {/* ── Breadcrumb & Title ────────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center gap-1.5 text-xs font-medium text-slate-400 mb-1">
+          <span>Academic Operations</span>
+          <ChevronRight className="w-3 h-3 text-slate-300" />
+          <span className="text-slate-700 font-semibold">Weekly Schedule</span>
+        </div>
+
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[rgb(var(--color-text-heading))]">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
             Timetable Studio
           </h1>
 
@@ -48,14 +60,19 @@ export function StudioHeader({
           <Badge
             variant="outline"
             size="sm"
-            className="bg-slate-50 border-slate-200 text-slate-700 font-medium gap-1"
+            className="bg-slate-50 border-slate-200/80 text-slate-600 font-medium gap-1 rounded-full text-[11px]"
           >
-            <GitBranch className="h-3 w-3 text-slate-500" />
+            <GitBranch className="h-3 w-3 text-slate-400" />
             <span>{scheduleVersion}</span>
           </Badge>
 
-          {/* Status Badge */}
-          <Badge variant={isDraft ? "warning" : "success"} size="sm" dot>
+          {/* Draft Status Badge */}
+          <Badge
+            variant={isDraft ? "warning" : "success"}
+            size="sm"
+            dot
+            className="rounded-full text-[11px] font-semibold"
+          >
             {isDraft ? "Draft Mode" : "Published"}
           </Badge>
 
@@ -64,13 +81,13 @@ export function StudioHeader({
             <Badge
               variant="critical"
               size="sm"
-              className="gap-1 font-semibold"
+              className="gap-1 font-semibold rounded-full text-[11px]"
             >
               <AlertTriangle className="h-3 w-3" />
               <span>{conflictCount} Conflicts Flagged</span>
             </Badge>
           ) : (
-            <Badge variant="success" size="sm">
+            <Badge variant="success" size="sm" className="rounded-full text-[11px]">
               All Constraints Clean
             </Badge>
           )}
@@ -80,46 +97,45 @@ export function StudioHeader({
             <Badge
               variant="info"
               size="sm"
-              className="bg-amber-50 text-amber-800 border-amber-300 animate-pulse font-medium"
+              className="bg-amber-50 text-amber-800 border-amber-300 animate-pulse font-medium rounded-full text-[11px]"
             >
               ● {stagedChangesCount} Uncommitted {stagedChangesCount === 1 ? "Change" : "Changes"}
             </Badge>
           )}
         </div>
-
-        <p className="text-xs sm:text-sm text-[rgb(var(--color-text-secondary))] max-w-2xl">
-          Visual matrix & tabular allocation engine. Reassign lecture slots, inspect facility capacities, and resolve schedule collisions in real time.
-        </p>
       </div>
 
-      {/* ── Actions Group (Undo, Save, Publish) ─────────────────────────── */}
-      <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
+      {/* ── Stitch Top Actions: Quick Search + Grouped Buttons ───────── */}
+      <div className="flex flex-wrap items-center gap-2.5">
+        {/* Quick search input matching Stitch */}
+        <div
+          className="relative w-48 sm:w-56 cursor-pointer group"
+          onClick={onSearchClick}
+        >
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-colors" />
+          <input
+            type="text"
+            readOnly
+            placeholder="Quick search..."
+            className="w-full bg-slate-50 hover:bg-slate-100/70 border border-slate-200/70 rounded-full pl-8 pr-7 py-1.5 text-xs text-slate-700 placeholder-slate-400 focus:outline-none transition cursor-pointer"
+          />
+          <kbd className="hidden sm:inline-flex absolute right-2 top-1.5 pointer-events-none text-[9px] text-slate-400 font-mono">
+            ⌘K
+          </kbd>
+        </div>
+
         {/* Undo button */}
         <Button
           variant="outline"
           size="sm"
           onClick={onUndo}
           disabled={stagedChangesCount === 0 || isSaving}
-          className="gap-1.5 border-slate-200 h-8.5 text-xs text-slate-700 hover:bg-slate-50"
+          className="gap-1.5 border-slate-200/80 h-8 text-xs text-slate-700 rounded-full px-3 hover:bg-slate-50 disabled:opacity-40"
           title="Revert last staged change"
         >
-          <RotateCcw className="h-3.5 w-3.5 text-slate-500" />
+          <RotateCcw className="h-3 w-3 text-slate-500" />
           <span>Undo</span>
         </Button>
-
-        {/* Reset All Staged Changes */}
-        {stagedChangesCount > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onReset}
-            disabled={isSaving}
-            className="text-xs text-slate-500 hover:text-red-600 h-8.5 px-2"
-            title="Discard all uncommitted staged moves"
-          >
-            Reset
-          </Button>
-        )}
 
         {/* Save Changes button */}
         <Button
@@ -127,13 +143,13 @@ export function StudioHeader({
           size="sm"
           onClick={onSave}
           disabled={stagedChangesCount === 0 || isSaving}
-          className={`gap-1.5 h-8.5 text-xs ${
+          className={`gap-1.5 h-8 text-xs rounded-full px-3.5 ${
             stagedChangesCount > 0
-              ? "bg-[rgb(var(--color-primary))] text-white hover:bg-[rgb(var(--color-primary-hover))]"
-              : "border-slate-200 text-slate-400"
+              ? "bg-[#FF6B4A] hover:bg-[#e05b3d] text-white font-semibold shadow-xs"
+              : "border-slate-200/80 text-slate-400 disabled:opacity-40"
           }`}
         >
-          <Save className="h-3.5 w-3.5" />
+          <Save className="h-3 w-3" />
           <span>{isSaving ? "Saving..." : "Save Changes"}</span>
         </Button>
 
@@ -142,12 +158,23 @@ export function StudioHeader({
           variant="outline"
           size="sm"
           onClick={onPublish}
-          className="gap-1.5 h-8.5 text-xs border-slate-200 hover:border-slate-300 font-medium"
+          className="gap-1.5 h-8 text-xs border-slate-200/80 hover:border-slate-300 font-medium rounded-full px-3 text-slate-700 hover:bg-slate-50"
         >
-          <CalendarCheck className="h-3.5 w-3.5 text-[rgb(var(--color-primary))]" />
+          <CalendarCheck className="h-3 w-3 text-slate-600" />
           <span>Publish Schedule</span>
         </Button>
+
+        {/* Stitch + New Session button */}
+        <Button
+          variant="default"
+          size="sm"
+          onClick={onNewSession}
+          className="gap-1.5 text-xs h-8 rounded-full px-4 shadow-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          <span>New Session</span>
+        </Button>
       </div>
-    </div>
+    </header>
   );
 }

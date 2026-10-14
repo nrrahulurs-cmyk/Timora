@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { PageHeader } from "@/components/ui/page-header";
+import { WorkspaceHeader } from "@/components/layout/workspace-header";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,12 +50,16 @@ export default function RoomsPage() {
 
   return (
     <div className="space-y-6 pb-12">
-      <PageHeader
+      <WorkspaceHeader
+        section="Infrastructure"
         title="Rooms & Resource Inventory"
-        description="Classroom capacities, specialized equipment, audio-visual facilities, and occupancy status."
-        breadcrumbs={[{ label: "Scheduling" }, { label: "Rooms & Resources" }]}
         actions={
-          <Button variant="default" size="sm" onClick={() => setModalOpen(true)} className="gap-1.5">
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => setModalOpen(true)}
+            className="gap-1.5 text-xs h-8 rounded-full px-4 shadow-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white"
+          >
             <Plus className="h-3.5 w-3.5" />
             <span>Find & Allocate Room</span>
           </Button>

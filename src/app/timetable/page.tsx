@@ -20,6 +20,7 @@ import { SessionDetailSheet } from "@/components/timetable/session-detail-sheet"
 import { MoveSessionModal } from "@/components/timetable/move-session-modal";
 import { PublishDialog } from "@/components/timetable/publish-dialog";
 import { ExportDialog } from "@/components/timetable/export-dialog";
+import { ScheduleExtraClassModal } from "@/components/dashboard/modals/schedule-extra-class-modal";
 import type { EnrichedSession } from "@/components/timetable/class-card";
 import {
   buildExportRows,
@@ -72,6 +73,7 @@ export default function TimetableStudioPage() {
   const [movingSession, setMovingSession] = React.useState<EnrichedSession | null>(null);
   const [publishDialogOpen, setPublishDialogOpen] = React.useState(false);
   const [exportDialogOpen, setExportDialogOpen] = React.useState(false);
+  const [newSessionOpen, setNewSessionOpen] = React.useState(false);
   const [isExporting, setIsExporting] = React.useState(false);
 
   // Load latest dataset from repository
@@ -400,31 +402,6 @@ export default function TimetableStudioPage() {
 
   return (
     <div className="space-y-4 pb-14">
-      {/* ── Hierarchical Academic Breadcrumb Navigation (Reference Composition) ─── */}
-      <div className="flex flex-wrap items-center gap-1.5 px-3 py-2 bg-white rounded-lg border border-slate-200/80 text-xs text-slate-600 shadow-2xs">
-        <div className="flex items-center gap-1 font-semibold text-slate-800">
-          <Building className="h-3.5 w-3.5 text-[rgb(var(--color-primary))]" />
-          <span>Faculty of Engineering</span>
-        </div>
-        <ChevronRight className="h-3.5 w-3.5 text-slate-300" />
-        <div className="flex items-center gap-1 font-medium text-slate-700">
-          <span>{selectedDepartment?.name || "All Engineering Depts"}</span>
-        </div>
-        <ChevronRight className="h-3.5 w-3.5 text-slate-300" />
-        <div className="flex items-center gap-1 text-slate-500">
-          <span>Fall 2026 (Odd Sem)</span>
-        </div>
-        <ChevronRight className="h-3.5 w-3.5 text-slate-300" />
-        <div className="flex items-center gap-1 font-medium text-slate-700">
-          <span>{filters.semester !== "all" ? `Semester ${filters.semester}` : "All Semesters"}</span>
-        </div>
-        <ChevronRight className="h-3.5 w-3.5 text-slate-300" />
-        <div className="flex items-center gap-1 font-bold text-[rgb(var(--color-primary))] bg-blue-50 px-2 py-0.5 rounded border border-blue-200/60">
-          <GraduationCap className="h-3 w-3 text-[rgb(var(--color-primary))]" />
-          <span>{selectedSection ? `${selectedSection.sectionCode} (${selectedSection.name})` : "All Cohort Sections"}</span>
-        </div>
-      </div>
-
       {/* ── Studio Header: Title, Versions, Clashes, Grouped Actions ──────── */}
       <StudioHeader
         scheduleVersion="v2.4-preview"
@@ -435,6 +412,7 @@ export default function TimetableStudioPage() {
         onSave={handleSave}
         onPublish={() => setPublishDialogOpen(true)}
         onReset={handleReset}
+        onNewSession={() => setNewSessionOpen(true)}
         isSaving={isSaving}
       />
 
@@ -522,6 +500,13 @@ export default function TimetableStudioPage() {
         }
         weekLabel={`Week ${9 + filters.weekOffset} (Oct 19 – Oct 24, 2026)`}
         isExporting={isExporting}
+      />
+
+      {/* ── Schedule New Session Modal ─────────────────────────────────────── */}
+      <ScheduleExtraClassModal
+        open={newSessionOpen}
+        onOpenChange={setNewSessionOpen}
+        onScheduled={loadData}
       />
     </div>
   );

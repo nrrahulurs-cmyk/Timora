@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { PageHeader } from "@/components/ui/page-header";
+import { WorkspaceHeader } from "@/components/layout/workspace-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -113,23 +113,22 @@ export default function ConflictsPage() {
 
   return (
     <div className="space-y-6 pb-16">
-      <PageHeader
-        title="Conflict Resolution Center"
-        description="Deterministic constraint validation, cascade ripple impact analysis, and safe schedule reallocations."
-        breadcrumbs={[{ label: "Scheduling" }, { label: "Conflicts" }]}
+      <WorkspaceHeader
+        section="Conflict Resolution"
+        title="Conflict Detection & Ripple Engine"
         badge={
-          <Badge variant="error" dot>
+          <Badge variant="error" dot className="rounded-full text-[11px] font-semibold">
             {conflicts.length} Active Clashes
           </Badge>
         }
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <Button
               variant="outline"
               size="sm"
               onClick={handleRunScheduleAudit}
               disabled={isAuditing}
-              className="gap-1.5 text-xs"
+              className="gap-1.5 text-xs h-8 rounded-full px-3.5 border-slate-200/80 bg-white hover:bg-slate-50 text-slate-700 font-semibold"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isAuditing ? "animate-spin" : ""}`} />
               <span>Validate Full Schedule</span>
@@ -142,9 +141,9 @@ export default function ConflictsPage() {
                   handleOpenResolve(conflicts[0]);
                 }
               }}
-              className="gap-1.5 text-xs"
+              className="gap-1.5 text-xs h-8 rounded-full px-4 shadow-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white"
             >
-              <Sparkles className="h-3.5 w-3.5" />
+              <Sparkles className="h-3.5 w-3.5 text-amber-300" />
               <span>Resolve Primary Clash</span>
             </Button>
           </div>

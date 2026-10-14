@@ -9,7 +9,7 @@ import {
   AlertCircle,
   CalendarCheck,
 } from "lucide-react";
-import { PageHeader } from "@/components/ui/page-header";
+import { WorkspaceHeader } from "@/components/layout/workspace-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -144,15 +144,10 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* ── A. Page Heading (Compact Title & Operational Status) ── */}
-      <PageHeader
+      {/* ── A. Page Heading (Google Stitch Top Action Bar) ── */}
+      <WorkspaceHeader
+        section="Overview"
         title="Academic Operations Overview"
-        description={`Fall 2026 Academic Term • ${metrics.scheduledClasses.count.toLocaleString()} of ${metrics.scheduledClasses.total.toLocaleString()} curriculum classes scheduled (${metrics.scheduledClasses.percentage}%). ${metrics.unresolvedConflicts.count} unresolved conflicts flagged for coordinator review.`}
-        breadcrumbs={[
-          { label: "Timora" },
-          { label: "Academic Operations" },
-          { label: "Overview" },
-        ]}
         badge={
           <div className="flex items-center gap-1.5">
             <Badge variant="success" size="sm" dot className="font-semibold text-[11px] rounded-full px-2.5 py-0.5">
@@ -169,7 +164,7 @@ export default function DashboardPage() {
               variant="outline"
               size="sm"
               onClick={handleRunScan}
-              className="gap-1.5 border-slate-200/80 bg-white/80 hover:bg-white text-xs h-8 rounded-full px-3.5 shadow-2xs font-semibold"
+              className="gap-1.5 border-slate-200/80 bg-white hover:bg-slate-50 text-xs h-8 rounded-full px-3.5 shadow-2xs font-semibold text-slate-700"
             >
               <RefreshCw className="h-3.5 w-3.5 text-slate-500" />
               <span>Run Pre-flight Scan</span>
@@ -179,7 +174,7 @@ export default function DashboardPage() {
               variant="default"
               size="sm"
               onClick={() => setPublishDialogOpen(true)}
-              className="gap-1.5 text-xs h-8 rounded-full px-3.5 shadow-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white"
+              className="gap-1.5 text-xs h-8 rounded-full px-4 shadow-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white"
             >
               <CalendarCheck className="h-3.5 w-3.5" />
               <span>Publish Timetable</span>

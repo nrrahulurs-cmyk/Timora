@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { PageHeader } from "@/components/ui/page-header";
+import { WorkspaceHeader } from "@/components/layout/workspace-header";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { Badge } from "@/components/ui/badge";
@@ -75,10 +75,9 @@ export default function AnalyticsPage() {
   if (!mounted || !dataset || loading) {
     return (
       <div className="space-y-6 pb-12">
-        <PageHeader
+        <WorkspaceHeader
+          section="Performance & Metrics"
           title="Scheduling Analytics & Insights"
-          description="Comprehensive facility utilization benchmarks, departmental load distributions, and historical conflict trends."
-          breadcrumbs={[{ label: "Overview" }, { label: "Analytics" }]}
         />
         <div className="p-12 text-center text-xs text-slate-400">
           Loading institutional analytics metrics...
@@ -195,12 +194,11 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6 pb-12">
-      <PageHeader
+      <WorkspaceHeader
+        section="Performance & Metrics"
         title="Institutional Scheduling Analytics & Insights"
-        description="Facility utilization benchmarks, occupied vs available room-slots, faculty workload distribution, conflict classifications, and syllabus tracking."
-        breadcrumbs={[{ label: "Overview" }, { label: "Analytics" }]}
         badge={
-          <Badge variant="outline" size="sm" className="font-mono bg-blue-50/50 border-blue-200 text-blue-800">
+          <Badge variant="outline" size="sm" className="font-mono bg-blue-50/50 border-blue-200 text-blue-800 rounded-full">
             Fall 2026 Academic Term
           </Badge>
         }
