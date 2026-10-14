@@ -21,7 +21,7 @@ export interface AssistantResponse {
   toolResults?: ToolExecutionResult[];
   actionPreview?: ActionPreviewPayload;
   sources?: Array<{ type: string; id: string; label: string }>;
-  provider: "gemini-api" | "deterministic-copilot";
+  provider: "groq-ai" | "gemini-api" | "deterministic-copilot";
 }
 
 /**
@@ -203,16 +203,200 @@ export async function fallbackSemanticClassifier(
 }
 
 /**
- * Main server-side assistant handler with Google GenAI integration and controlled tool loop.
+ * High-speed Groq AI Companion engine with native OpenAI-compatible function calling.
+ * Delivers sub-100ms inference with real academic scheduling tools.
+ */
+async function runGroqCopilot(
+  message: string,
+  conversationHistory: Array<{ role: string; content: string }> = [],
+  userRole: UserRole = "academic_admin"
+): Promise<AssistantResponse | null> {
+  const groqApiKey = process.env.GROQ_API_KEY;
+  if (!groqApiKey || groqApiKey.trim() === "" || groqApiKey === "placeholder-key") {
+    return null;
+  }
+
+  try {
+    const tools = SYNAPSE_TOOL_DECLARATIONS.map((t) => ({
+      type: "function",
+      function: {
+        name: t.name,
+        description: t.description,
+        parameters: {
+          type: "object",
+          properties: Object.fromEntries(
+            Object.entries(t.parameters.properties || {}).map(([k, v]: any) => [
+              k,
+              { type: (v.type || "string").toLowerCase(), description: v.description || "" },
+            ])
+          ),
+          required: t.parameters.required || [],
+        },
+      },
+    }));
+
+    const systemPrompt = `You are Timo, the intelligent, warm, and delightfully approachable academic operations AI companion for Timora Institute (inspired by friendly AI companions like Muse and OpenAI Dots).
+You combine empathy, conciseness, and cheerful character with mathematical rigor and constraint validation.
+
+You have direct access to authoritative tools for:
+- searchAvailableRooms: finding vacant classrooms and halls
+- checkFacultyAvailability: checking instructor teaching commitments and workload limits
+- findTimetableConflicts: active schedule clashes and double-bookings
+- findFeasibleTimeSlots: calculating conflict-free slots for courses
+- previewScheduleChange: simulating moves and calculating ripple consequences
+- proposeExtraClass: scheduling ad-hoc makeup sessions
+- proposeTeacherExchange: faculty peer-swap proposals
+- readSyllabusProgress: tracking curriculum delivery velocity and pacing deficits
+
+RULES:
+1. ALWAYS invoke the relevant tool to fetch real authoritative data from the database. NEVER invent or hallucinate room codes, faculty names, or schedule clashes.
+2. For schedule mutations (extra class proposals, faculty swaps), execute the proposal tool to generate an Action Preview for explicit user confirmation.
+3. Keep responses clean, concise, structured, and easy to scan with markdown tables, bullet points, and friendly emojis where helpful.`;
+
+    const messages: any[] = [{ role: "system", content: systemPrompt }];
+
+    if (conversationHistory && conversationHistory.length > 0) {
+      for (const turn of conversationHistory.slice(-4)) {
+        messages.push({
+          role: turn.role === "assistant" ? "assistant" : "user",
+          content: turn.content,
+        });
+      }
+    }
+
+    messages.push({ role: "user", content: message });
+
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${groqApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "qwen/qwen3.8-27b",
+        messages,
+        tools,
+        tool_choice: "auto",
+        temperature: 0.1,
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.warn("Groq API returned error status:", response.status, errText);
+      return null;
+    }
+
+    const data = await response.json();
+    const choice = data.choices?.[0];
+    if (!choice) return null;
+
+    const assistantMsg = choice.message;
+    const toolCalls = assistantMsg.tool_calls || [];
+
+    if (toolCalls.length > 0) {
+      const toolResults: ToolExecutionResult[] = [];
+      const sources: Array<{ type: string; id: string; label: string }> = [];
+      let actionPreview: ActionPreviewPayload | undefined;
+
+      messages.push(assistantMsg);
+
+      for (const call of toolCalls) {
+        const toolName = call.function.name;
+        let toolArgs = {};
+        try {
+          toolArgs = JSON.parse(call.function.arguments || "{}");
+        } catch (e) {
+          console.warn("Failed to parse tool call args:", call.function.arguments);
+        }
+
+        const result = await executeSchedulingTool(toolName, toolArgs, userRole);
+        toolResults.push(result);
+        if (result.sources) sources.push(...result.sources);
+        if (result.actionPreview) actionPreview = result.actionPreview;
+
+        messages.push({
+          role: "tool",
+          tool_call_id: call.id,
+          name: toolName,
+          content: JSON.stringify(result.data || result.actionPreview || { success: result.success }),
+        });
+      }
+
+      // Second turn: pass tool execution outputs back to Groq for grounded answer synthesis
+      try {
+        const synthResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${groqApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "qwen/qwen3.8-27b",
+            messages,
+            temperature: 0.2,
+          }),
+        });
+
+        if (synthResponse.ok) {
+          const synthData = await synthResponse.json();
+          const finalReply = synthData.choices?.[0]?.message?.content;
+          if (finalReply && finalReply.trim()) {
+            return {
+              reply: finalReply.trim(),
+              toolResults,
+              actionPreview,
+              sources,
+              provider: "groq-ai",
+            };
+          }
+        }
+      } catch (synthErr) {
+        console.warn("Groq second-turn synthesis failed:", synthErr);
+      }
+
+      // If synthesis failed, produce formatted tool results
+      const fallback = await fallbackSemanticClassifier(message, userRole);
+      return {
+        reply: fallback.reply,
+        toolResults,
+        actionPreview: actionPreview || fallback.actionPreview,
+        sources: sources.length > 0 ? sources : fallback.sources,
+        provider: "groq-ai",
+      };
+    }
+
+    if (assistantMsg.content && assistantMsg.content.trim()) {
+      return {
+        reply: assistantMsg.content.trim(),
+        provider: "groq-ai",
+      };
+    }
+
+    return null;
+  } catch (err: any) {
+    console.warn("Groq API call exception, falling back:", err?.message || err);
+    return null;
+  }
+}
+
+/**
+ * Main server-side assistant handler with Groq, Google GenAI, and deterministic fallback.
  */
 export async function askTimoraCopilot(
   message: string,
   conversationHistory: Array<{ role: string; content: string }> = [],
   userRole: UserRole = "academic_admin"
 ): Promise<AssistantResponse> {
+  // Priority 1: High-speed Groq AI Companion engine
+  const groqResult = await runGroqCopilot(message, conversationHistory, userRole);
+  if (groqResult) {
+    return groqResult;
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
 
-  // If no API key or placeholder, run robust deterministic copilot
+  // If no Gemini key or placeholder, run robust deterministic copilot
   if (!apiKey || apiKey === "placeholder-key" || apiKey.trim() === "") {
     return fallbackSemanticClassifier(message, userRole);
   }

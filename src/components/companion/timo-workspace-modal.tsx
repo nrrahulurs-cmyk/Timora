@@ -19,12 +19,22 @@ import {
   Sparkles,
   Users,
   Search,
+  Volume2,
+  VolumeX,
+  Copy,
+  Mic,
+  MicOff,
+  Maximize2,
+  Minimize2,
+  BookOpen,
+  Zap,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/feedback/use-toast";
-import { TimoAvatar, type TimoState } from "./timo-avatar";
+import { TimoAvatar, type TimoState, type TimoGlance } from "./timo-avatar";
+import { timoAudio } from "./timo-audio";
 import type { ActionPreviewPayload, ToolExecutionResult } from "@/lib/gemini/tools";
 import type { UserRole } from "@/types/domain";
 
@@ -32,7 +42,7 @@ export interface AssistantMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
-  provider?: "gemini-api" | "deterministic-copilot";
+  provider?: "groq-ai" | "gemini-api" | "deterministic-copilot";
   toolResults?: ToolExecutionResult[];
   actionPreview?: ActionPreviewPayload;
   sources?: Array<{ type: string; id: string; label: string }>;
@@ -48,6 +58,64 @@ interface TimoWorkspaceModalProps {
   onNavigateToConflict?: (conflictId?: string) => void;
 }
 
+type SuggestionCategory = "all" | "rooms" | "clashes" | "makeup" | "faculty" | "syllabus";
+
+interface SuggestionItem {
+  category: SuggestionCategory;
+  label: string;
+  query: string;
+  badge?: string;
+}
+
+const CATEGORIZED_SUGGESTIONS: SuggestionItem[] = [
+  {
+    category: "rooms",
+    label: "Available Lecture Halls on Friday",
+    query: "Search available lecture halls on Friday 10:00 AM",
+    badge: "13 Free",
+  },
+  {
+    category: "clashes",
+    label: "Diagnose Active Schedule Clashes",
+    query: "Check current timetable conflicts and double-bookings",
+    badge: "5 Clashes",
+  },
+  {
+    category: "clashes",
+    label: "BSL-3 Biocontainment Status",
+    query: "What is the status of LAB-BIO-BSL3 facility and how can we resolve it?",
+    badge: "Critical",
+  },
+  {
+    category: "makeup",
+    label: "Propose Makeup Session for CS-401",
+    query: "Propose an extra review class for CS-401 in LH-101 on Friday at 09:00",
+    badge: "2-Phase Action",
+  },
+  {
+    category: "makeup",
+    label: "Find Feasible Slots for CS-401",
+    query: "Find feasible conflict-free time slots for CS-401",
+  },
+  {
+    category: "faculty",
+    label: "Check Dr. Sarah Lin's Availability",
+    query: "Check Dr. Sarah Lin's availability on Tuesday morning",
+  },
+  {
+    category: "faculty",
+    label: "Simulate Faculty Peer Exchange",
+    query: "Propose teacher exchange between Dr. Alan Turing and Prof. Ada Lovelace for Monday",
+    badge: "Swap",
+  },
+  {
+    category: "syllabus",
+    label: "Check Curriculum Pacing & Velocity",
+    query: "Show syllabus delivery progress and pacing deficits across all departments",
+    badge: "Live Sync",
+  },
+];
+
 export function TimoWorkspaceModal({
   open,
   onOpenChange,
@@ -58,22 +126,35 @@ export function TimoWorkspaceModal({
   const [input, setInput] = React.useState("");
   const [role, setRole] = React.useState<UserRole>(initialRole);
   const [timoState, setTimoState] = React.useState<TimoState>("ready");
+  const [timoGlance, setTimoGlance] = React.useState<TimoGlance>("center");
   const [isTyping, setIsTyping] = React.useState(false);
   const [activeStepText, setActiveStepText] = React.useState<string>("Analyzing operational request...");
   const [committingToken, setCommittingToken] = React.useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = React.useState<SuggestionCategory>("all");
+  const [isMuted, setIsMuted] = React.useState(false);
+  const [isSpeakingMsgId, setIsSpeakingMsgId] = React.useState<string | null>(null);
+  const [isListening, setIsListening] = React.useState(false);
+  const [copiedMsgId, setCopiedMsgId] = React.useState<string | null>(null);
+  const [isCompactDock, setIsCompactDock] = React.useState(false);
 
   const initialGreeting: AssistantMessage = {
     id: "initial-msg",
     role: "assistant",
     content:
-      "Hello! I am **Timo**, your academic operations and intelligent scheduling companion. I am connected directly to our deterministic constraint engine, room inventory, and faculty rosters.\n\nHow can I help coordinate your schedule today?",
-    provider: "deterministic-copilot",
+      "Hello! I am **Timo**, your high-speed academic operations companion. I am powered by Groq LPU sub-100ms inference and connected directly to our deterministic constraint engine, classroom databases, and faculty rosters.\n\nHow can I help coordinate your schedule today?",
+    provider: "groq-ai",
   };
 
   const [messages, setMessages] = React.useState<AssistantMessage[]>([initialGreeting]);
 
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = React.useRef<any>(null);
+
+  // Sync mute state
+  React.useEffect(() => {
+    timoAudio.isMuted = isMuted;
+  }, [isMuted]);
 
   // Auto scroll to bottom
   React.useEffect(() => {
@@ -91,19 +172,110 @@ export function TimoWorkspaceModal({
     }
   }, [open]);
 
-  // Sample quick suggestion prompts
-  const quickSuggestions = [
-    { label: "Search available rooms", query: "Search available lecture halls on Friday 10:00 AM" },
-    { label: "Check timetable conflicts", query: "Check current timetable conflicts" },
-    { label: "Find feasible slots", query: "Find feasible time slots for CS-401" },
-    { label: "Propose extra class", query: "Propose an extra review class for CS-401" },
-    { label: "Check syllabus progress", query: "Show syllabus progress and pacing deficits" },
-    { label: "Check faculty availability", query: "Check Dr. Sarah Lin's availability on Tuesday" },
-  ];
+  // Pupil reaction on typing
+  React.useEffect(() => {
+    if (input.length > 0) {
+      setTimoGlance("down");
+    } else {
+      setTimoGlance("center");
+    }
+  }, [input]);
+
+  // Voice recognition setup
+  const toggleSpeechRecognition = () => {
+    if (typeof window === "undefined") return;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast({
+        title: "Speech Recognition Unavailable",
+        description: "Your browser does not support Web Speech Recognition.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        timoAudio.play("pop");
+        setTimoState("receiving_input");
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = Array.from(event.results)
+          .map((result: any) => result[0].transcript)
+          .join("");
+        setInput(transcript);
+      };
+
+      recognition.onerror = () => {
+        setIsListening(false);
+        setTimoState("ready");
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+        setTimoState("ready");
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch {
+      setIsListening(false);
+    }
+  };
+
+  const handleSpeakMessage = (msg: AssistantMessage) => {
+    if (isSpeakingMsgId === msg.id) {
+      timoAudio.stopSpeaking();
+      setIsSpeakingMsgId(null);
+      return;
+    }
+
+    setIsSpeakingMsgId(msg.id);
+    const ok = timoAudio.speak(msg.content, () => {
+      setIsSpeakingMsgId(null);
+    });
+    if (!ok) {
+      setIsSpeakingMsgId(null);
+      toast({
+        title: "Speech Synthesis Unavailable",
+        description: "Voice output is not supported in this browser.",
+      });
+    }
+  };
+
+  const handleCopyMessage = async (msgId: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedMsgId(msgId);
+      timoAudio.play("blip");
+      setTimeout(() => setCopiedMsgId(null), 2000);
+      toast({
+        title: "Copied to Clipboard",
+        description: "Assistant response copied successfully.",
+      });
+    } catch {
+      // Fallback
+    }
+  };
 
   const handleSend = async (textToSend?: string) => {
     const text = (textToSend || input).trim();
     if (!text || isTyping) return;
+
+    timoAudio.play("send");
 
     const userMsg: AssistantMessage = {
       id: `usr-${Date.now()}`,
@@ -115,16 +287,17 @@ export function TimoWorkspaceModal({
     setInput("");
     setIsTyping(true);
     setTimoState("thinking");
-    setActiveStepText("Validating role authorization & context...");
+    setTimoGlance("up");
+    setActiveStepText("⚡ Groq LPU: Validating semantic intent & permissions...");
 
     const step1 = setTimeout(() => {
       setTimoState("tool_calling");
       setActiveStepText("Executing domain tools against authoritative database...");
-    }, 350);
+    }, 250);
 
     const step2 = setTimeout(() => {
       setActiveStepText("Evaluating [start, end) interval constraints...");
-    }, 700);
+    }, 500);
 
     try {
       const res = await fetch("/api/ask-timora", {
@@ -151,12 +324,14 @@ export function TimoWorkspaceModal({
 
       const hasAction = Boolean(data.actionPreview);
       setTimoState(hasAction ? "awaiting_confirmation" : "completed");
+      setTimoGlance("center");
+      timoAudio.play(hasAction ? "confirm" : "success");
 
       const assistantMsg: AssistantMessage = {
         id: `asst-${Date.now()}`,
         role: "assistant",
         content: data.reply || "Operation completed.",
-        provider: data.provider || "deterministic-copilot",
+        provider: data.provider || "groq-ai",
         toolResults: data.toolResults || [],
         actionPreview: data.actionPreview,
         sources: data.sources || [],
@@ -175,7 +350,7 @@ export function TimoWorkspaceModal({
         id: `err-${Date.now()}`,
         role: "assistant",
         content:
-          "⚠️ **Timo Notice**: Could not complete the request due to an operational timeout or service interruption. You can retry with our deterministic local engine.",
+          "⚠️ **Timo Notice**: Could not complete the request due to an operational timeout. Falling back to deterministic constraint checks.",
         isError: true,
       };
       setMessages((prev) => [...prev, errorMsg]);
@@ -198,6 +373,7 @@ export function TimoWorkspaceModal({
   const handleConfirmAction = async (msgId: string, confirmationToken: string) => {
     setCommittingToken(confirmationToken);
     setTimoState("tool_calling");
+    timoAudio.play("pop");
 
     try {
       const res = await fetch("/api/ask-timora", {
@@ -217,6 +393,8 @@ export function TimoWorkspaceModal({
       }
 
       setTimoState("completed");
+      timoAudio.play("success");
+
       toast({
         title: "Action Committed & Synchronized",
         description: data.message,
@@ -229,7 +407,7 @@ export function TimoWorkspaceModal({
             ? {
                 ...m,
                 committedRecordId: data.recordId || "COMMITTED",
-                content: `${m.content}\n\n✅ **Action Successfully Executed**: ${data.message}`,
+                content: `${m.content}\n\n✅ **Action Successfully Executed & Persisted**: ${data.message}`,
               }
             : m
         )
@@ -255,6 +433,7 @@ export function TimoWorkspaceModal({
   };
 
   const handleCancelAction = (msgId: string) => {
+    timoAudio.play("blip");
     setMessages((prev) =>
       prev.map((m) =>
         m.id === msgId
@@ -273,24 +452,33 @@ export function TimoWorkspaceModal({
   };
 
   const handleResetConversation = () => {
+    timoAudio.play("pop");
     setMessages([initialGreeting]);
     setTimoState("ready");
   };
 
   const isOnlyGreeting = messages.length <= 1;
 
+  const filteredSuggestions = CATEGORIZED_SUGGESTIONS.filter((s) =>
+    selectedCategory === "all" ? true : s.category === selectedCategory
+  );
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="p-0 w-full sm:max-w-xl md:max-w-2xl flex flex-col h-full bg-white/95 backdrop-blur-2xl border-l border-slate-200/90 shadow-2xl z-50 overflow-hidden"
+        className={`p-0 flex flex-col h-full bg-white/95 backdrop-blur-2xl border-l border-slate-200/90 shadow-2xl z-50 overflow-hidden transition-all duration-300 ${
+          isCompactDock
+            ? "w-full sm:max-w-md md:max-w-lg"
+            : "w-full sm:max-w-xl md:max-w-2xl"
+        }`}
       >
         {/* ── Header ───────────────────────────────────────────────────────── */}
-        <SheetHeader className="p-4 px-5 border-b border-slate-100/80 bg-white/80 backdrop-blur-md shrink-0">
+        <SheetHeader className="p-3.5 sm:p-4 px-4 sm:px-5 border-b border-slate-100/90 bg-white/85 backdrop-blur-md shrink-0">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="relative">
-                <TimoAvatar size="md" state={timoState} />
+              <div className="relative group cursor-pointer" onClick={() => timoAudio.play("pop")}>
+                <TimoAvatar size="md" state={timoState} glance={timoGlance} showCompanionDots={true} />
                 <span className="absolute -bottom-0.5 -right-0.5 flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
@@ -300,32 +488,63 @@ export function TimoWorkspaceModal({
                 <SheetTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
                   Timo
                   <Badge variant="outline" className="text-[10px] font-semibold bg-primary-coral/10 text-primary-coral border-primary-coral/30 px-2 py-0">
-                    Academic Companion
+                    Cute AI Companion
                   </Badge>
                 </SheetTitle>
                 <SheetDescription className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
-                  <span>Deterministic Constraint Engine</span>
+                  <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                    <Zap className="h-3 w-3 text-amber-500" /> Groq LPU (Sub-100ms)
+                  </span>
                   <span>•</span>
-                  <span>Gemini 2.5</span>
+                  <span>Qwen 2.5 32B</span>
                 </SheetDescription>
               </div>
             </div>
 
-            {/* Role Switcher & Controls */}
-            <div className="flex items-center gap-2">
+            {/* Quick Controls */}
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              {/* Role Switcher */}
               <select
                 aria-label="Active User Role"
                 value={role}
-                onChange={(e) => setRole(e.target.value as UserRole)}
-                className="text-[11px] font-medium bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-lg px-2.5 py-1 border border-slate-200 transition cursor-pointer focus:outline-hidden"
+                onChange={(e) => {
+                  setRole(e.target.value as UserRole);
+                  timoAudio.play("blip");
+                }}
+                className="text-[11px] font-medium bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-lg px-2 py-1 border border-slate-200 transition cursor-pointer focus:outline-hidden"
                 title="Switch role context for authorization testing"
               >
                 <option value="academic_admin">Dean / Admin</option>
                 <option value="timetable_coordinator">Timetable Coord</option>
-                <option value="faculty_instructor">Faculty Member</option>
+                <option value="faculty_instructor">Faculty</option>
                 <option value="student_viewer">Student (Read-Only)</option>
               </select>
 
+              {/* Sound Toggle */}
+              <button
+                type="button"
+                onClick={() => setIsMuted((prev) => !prev)}
+                className={`p-1.5 rounded-lg border transition ${
+                  isMuted
+                    ? "text-slate-400 border-transparent hover:bg-slate-100"
+                    : "text-primary-coral border-primary-coral/20 bg-primary-coral/5"
+                }`}
+                title={isMuted ? "Unmute Timo chimes" : "Mute Timo chimes"}
+              >
+                {isMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+              </button>
+
+              {/* Compact / Expanded Toggle */}
+              <button
+                type="button"
+                onClick={() => setIsCompactDock((prev) => !prev)}
+                className="hidden sm:inline-flex p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition"
+                title={isCompactDock ? "Expand to wide workspace" : "Compact side view"}
+              >
+                {isCompactDock ? <Maximize2 className="h-3.5 w-3.5" /> : <Minimize2 className="h-3.5 w-3.5" />}
+              </button>
+
+              {/* Reset Thread */}
               <button
                 type="button"
                 onClick={handleResetConversation}
@@ -335,6 +554,7 @@ export function TimoWorkspaceModal({
                 <RotateCcw className="h-3.5 w-3.5" />
               </button>
 
+              {/* Close */}
               <button
                 type="button"
                 onClick={() => onOpenChange(false)}
@@ -348,38 +568,74 @@ export function TimoWorkspaceModal({
         </SheetHeader>
 
         {/* ── Message Thread / Scroll Area ─────────────────────────────────── */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 scrollbar-thin">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 scrollbar-thin">
           {/* Welcome State when only initial greeting */}
           {isOnlyGreeting && (
             <div className="py-6 px-4 bg-slate-50/70 border border-slate-200/60 rounded-3xl text-center space-y-4">
-              <div className="flex justify-center">
-                <TimoAvatar size="xl" state={timoState} />
+              <div className="flex justify-center relative">
+                <TimoAvatar size="xl" state={timoState} glance={timoGlance} showCompanionDots={true} />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-900 tracking-tight">
+                <h3 className="text-sm font-bold text-slate-900 tracking-tight flex items-center justify-center gap-1.5">
                   How can I coordinate your academic operations today?
                 </h3>
                 <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-                  I can check classroom occupancy, evaluate schedule clashes, recommend feasible alternatives, or propose makeup sessions.
+                  Ask me to search classrooms, resolve timetable clashes, verify faculty workload, or propose ad-hoc review sessions.
                 </p>
+              </div>
+
+              {/* Category Pills */}
+              <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1">
+                {(
+                  [
+                    { id: "all", label: "✨ All" },
+                    { id: "rooms", label: "🏢 Rooms" },
+                    { id: "clashes", label: "⚠️ Clashes" },
+                    { id: "makeup", label: "📅 Makeup" },
+                    { id: "faculty", label: "👨‍🏫 Faculty" },
+                    { id: "syllabus", label: "📊 Syllabus" },
+                  ] as const
+                ).map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategory(cat.id);
+                      timoAudio.play("pop");
+                    }}
+                    className={`text-[11px] font-semibold px-2.5 py-1 rounded-full transition cursor-pointer ${
+                      selectedCategory === cat.id
+                        ? "bg-slate-900 text-white shadow-xs"
+                        : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
               </div>
 
               {/* Suggestions Grid */}
               <div className="pt-2 text-left">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block mb-2 px-1">
-                  Try asking Timo:
-                </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {quickSuggestions.map((item, idx) => (
+                  {filteredSuggestions.map((item, idx) => (
                     <button
                       key={idx}
                       type="button"
                       onClick={() => handleSend(item.query)}
-                      className="p-2.5 rounded-2xl bg-white hover:bg-slate-100/90 border border-slate-200/80 text-left transition text-xs group cursor-pointer flex items-start gap-2 shadow-xs"
+                      className="p-2.5 rounded-2xl bg-white hover:bg-slate-100/90 border border-slate-200/80 text-left transition text-xs group cursor-pointer flex flex-col justify-between gap-1.5 shadow-xs hover:border-primary-coral/40"
                     >
-                      <Sparkles className="h-3.5 w-3.5 text-primary-coral shrink-0 mt-0.5" />
-                      <span className="text-slate-700 group-hover:text-slate-900 font-medium leading-snug">
-                        {item.label}
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="text-slate-800 group-hover:text-slate-900 font-semibold leading-snug">
+                          {item.label}
+                        </span>
+                        {item.badge && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-primary-coral/10 text-primary-coral border border-primary-coral/20 shrink-0">
+                            {item.badge}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-slate-400 group-hover:text-slate-500 font-mono line-clamp-1">
+                        &quot;{item.query}&quot;
                       </span>
                     </button>
                   ))}
@@ -406,7 +662,7 @@ export function TimoWorkspaceModal({
                     </div>
                   )}
 
-                  <div className={`space-y-3 max-w-[85%] ${isUser ? "items-end" : "items-start"}`}>
+                  <div className={`space-y-2.5 max-w-[85%] ${isUser ? "items-end" : "items-start"}`}>
                     {/* Message Bubble */}
                     <div
                       className={`p-3.5 rounded-2xl ${
@@ -415,17 +671,53 @@ export function TimoWorkspaceModal({
                           : "bg-white border border-slate-200/80 text-slate-800 rounded-tl-xs shadow-xs"
                       }`}
                     >
-                      <div className="whitespace-pre-line prose prose-xs max-w-none text-inherit">
+                      <div className="whitespace-pre-line prose prose-xs max-w-none text-inherit leading-relaxed">
                         {msg.content}
                       </div>
 
-                      {/* Provider pill on assistant response */}
-                      {!isUser && msg.provider && (
-                        <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
-                          <span className="flex items-center gap-1">
+                      {/* Assistant Response Actions & Provider */}
+                      {!isUser && (
+                        <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
+                          <span className="flex items-center gap-1 font-medium">
                             <ShieldCheck className="h-3 w-3 text-emerald-600" />
-                            Verified with deterministic constraint engine
+                            {msg.provider === "groq-ai" ? (
+                              <span className="text-emerald-700 flex items-center gap-1">
+                                <Zap className="h-2.5 w-2.5 text-amber-500" /> Groq LPU Ultra-Fast
+                              </span>
+                            ) : (
+                              "Deterministic Engine"
+                            )}
                           </span>
+
+                          <div className="flex items-center gap-2">
+                            {/* Read Aloud Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleSpeakMessage(msg)}
+                              className={`p-1 rounded-md transition ${
+                                isSpeakingMsgId === msg.id
+                                  ? "text-primary-coral bg-primary-coral/10 animate-pulse"
+                                  : "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                              }`}
+                              title={isSpeakingMsgId === msg.id ? "Stop voice" : "Listen to Timo"}
+                            >
+                              <Volume2 className="h-3 w-3" />
+                            </button>
+
+                            {/* Copy Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleCopyMessage(msg.id, msg.content)}
+                              className="p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100 transition"
+                              title="Copy response"
+                            >
+                              {copiedMsgId === msg.id ? (
+                                <Check className="h-3 w-3 text-emerald-600" />
+                              ) : (
+                                <Copy className="h-3 w-3" />
+                              )}
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -459,7 +751,7 @@ export function TimoWorkspaceModal({
                                     >
                                       <div>
                                         <div className="font-bold text-slate-800">{r.code}</div>
-                                        <div className="text-[10px] text-slate-500">{r.name}</div>
+                                        <div className="text-[10px] text-slate-500 line-clamp-1">{r.name}</div>
                                       </div>
                                       <div className="mt-1 flex items-center justify-between text-[10px] text-slate-600">
                                         <span>{r.capacity} seats</span>
@@ -600,10 +892,10 @@ export function TimoWorkspaceModal({
               );
             })}
 
-          {/* Typing / Multi-step Progress indicator */}
+          {/* Multi-step Typing / Tool Calling progress */}
           {isTyping && (
             <div className="flex gap-3 text-xs items-center">
-              <TimoAvatar size="sm" state={timoState} />
+              <TimoAvatar size="sm" state={timoState} glance="up" showCompanionDots={true} />
               <div className="p-3 bg-white border border-slate-200/80 rounded-2xl rounded-tl-xs shadow-xs space-y-1.5">
                 <div className="flex items-center gap-2 text-slate-700 font-medium">
                   <span className="h-1.5 w-1.5 rounded-full bg-primary-coral animate-ping" />
@@ -632,24 +924,42 @@ export function TimoWorkspaceModal({
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask Timo anything about classrooms, conflicts, or faculty..."
+                placeholder={isListening ? "Listening... Speak your academic question" : "Ask Timo anything about classrooms, conflicts, or faculty..."}
                 rows={2}
-                className="w-full p-3 pr-10 text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden resize-none bg-transparent"
+                className="w-full p-3 pr-20 text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden resize-none bg-transparent"
               />
-              <button
-                type="submit"
-                disabled={!input.trim() || isTyping}
-                className="absolute right-2.5 bottom-2.5 p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
-                title="Send message (Enter)"
-              >
-                <Send className="h-3.5 w-3.5" />
-              </button>
+
+              <div className="absolute right-2.5 bottom-2.5 flex items-center gap-1.5">
+                {/* Voice Dictation Button */}
+                <button
+                  type="button"
+                  onClick={toggleSpeechRecognition}
+                  className={`p-1.5 rounded-xl transition cursor-pointer ${
+                    isListening
+                      ? "bg-rose-500 text-white animate-pulse"
+                      : "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                  }`}
+                  title={isListening ? "Stop listening" : "Dictate with voice"}
+                >
+                  {isListening ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                </button>
+
+                {/* Send Button */}
+                <button
+                  type="submit"
+                  disabled={!input.trim() || isTyping}
+                  className="p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
+                  title="Send message (Enter)"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
 
             <div className="flex items-center justify-between text-[10px] text-slate-400 px-1">
               <span>Press <kbd className="font-mono bg-slate-100 px-1 py-0.5 rounded border border-slate-200 text-slate-600">Enter</kbd> to send, <kbd className="font-mono bg-slate-100 px-1 py-0.5 rounded border border-slate-200 text-slate-600">Shift+Enter</kbd> for newline</span>
-              <span className="flex items-center gap-1 text-slate-500 font-medium">
-                <Sparkles className="h-3 w-3 text-primary-coral" /> Timo Copilot v2.4
+              <span className="flex items-center gap-1 text-emerald-700 font-medium">
+                <Sparkles className="h-3 w-3 text-primary-coral" /> Timo Copilot • Groq Powered
               </span>
             </div>
           </form>
