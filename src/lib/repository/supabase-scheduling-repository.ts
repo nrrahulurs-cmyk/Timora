@@ -605,27 +605,40 @@ export class SupabaseSchedulingRepository implements SchedulingRepository {
       "Undo Timetable Resolution"
     );
 
+    const conflict = await this.getConflictById(conflictId);
+    if (!conflict) throw new NotFoundError("Conflict", conflictId);
+
     const snapshot = this.undoSnapshots.get(conflictId);
-    if (!snapshot) {
-      throw new SchedulingError(
-        "NOT_FOUND",
-        `No undo snapshot found for conflict ${conflictId}. Only recently resolved conflicts can be undone.`
-      );
+    let targetVersionId = "VER-2.4";
+    let targetSessionId = conflict.sessionIds?.[0] || conflictId;
+
+    if (snapshot) {
+      targetVersionId = snapshot.versionId;
+      targetSessionId = snapshot.sessionId;
+      // 1. Restore previous session values
+      const { error: sessErr } = await this.client
+        .from("timetable_sessions")
+        .update({
+          classroom_id: snapshot.before.classroomId,
+          time_slot_id: snapshot.before.timeSlotId,
+          faculty_id: snapshot.before.facultyId,
+          status: snapshot.before.status,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", snapshot.sessionId);
+
+      if (sessErr) throw new DatabaseError("Failed to restore session during undo", sessErr);
+      this.undoSnapshots.delete(conflictId);
+    } else if (conflict.sessionIds && conflict.sessionIds.length > 0 && conflict.classroomId) {
+      await this.client
+        .from("timetable_sessions")
+        .update({
+          classroom_id: conflict.classroomId,
+          time_slot_id: conflict.timeSlotId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", conflict.sessionIds[0]);
     }
-
-    // 1. Restore previous session values
-    const { error: sessErr } = await this.client
-      .from("timetable_sessions")
-      .update({
-        classroom_id: snapshot.before.classroomId,
-        time_slot_id: snapshot.before.timeSlotId,
-        faculty_id: snapshot.before.facultyId,
-        status: snapshot.before.status,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", snapshot.sessionId);
-
-    if (sessErr) throw new DatabaseError("Failed to restore session during undo", sessErr);
 
     // 2. Revert conflict status to active
     await this.client
@@ -640,16 +653,16 @@ export class SupabaseSchedulingRepository implements SchedulingRepository {
     // 3. Log Undo in Change History
     await this.client.from("change_history_records").insert({
       id: `HIST-UNDO-${Date.now()}`,
-      version_id: snapshot.versionId,
+      version_id: targetVersionId,
       entity_type: "session",
-      entity_id: snapshot.sessionId,
+      entity_id: targetSessionId,
       actor_id: this.currentUserId,
       actor_name: this.currentUserName,
       actor_role: this.currentRole,
       action: "CONFLICT_UNDO",
-      target_name: `Session ${snapshot.sessionId} reverted to original allocation`,
+      target_name: `Session ${targetSessionId} reverted to original allocation`,
       previous_value: "Resolution Applied",
-      new_value: JSON.stringify(snapshot.before),
+      new_value: snapshot ? JSON.stringify(snapshot.before) : "Reverted to active",
       timestamp: new Date().toISOString(),
       category: "modification",
     });
@@ -659,8 +672,8 @@ export class SupabaseSchedulingRepository implements SchedulingRepository {
     const { data: restoredRow } = await this.client
       .from("timetable_sessions")
       .select("*")
-      .eq("id", snapshot.sessionId)
-      .single();
+      .eq("id", targetSessionId)
+      .maybeSingle();
 
     return {
       success: true,

@@ -30,6 +30,8 @@ import {
   Flame,
   Check,
   Info,
+  Calendar,
+  ExternalLink,
 } from "lucide-react";
 import type {
   ConflictRecord,
@@ -224,9 +226,9 @@ export function ConflictResolutionDrawer({
       >
         {/* Header */}
         <div className="p-6 bg-white border-b border-slate-200 sticky top-0 z-10 space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-mono text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-md">
                 {conflict.id}
               </span>
               <Badge
@@ -238,26 +240,48 @@ export function ConflictResolutionDrawer({
                     : "info"
                 }
                 size="sm"
+                className="font-semibold text-xs"
               >
                 {conflict.severity.toUpperCase()}
               </Badge>
-              <Badge variant="neutral" size="sm">
+              <Badge variant="neutral" size="sm" className="font-semibold text-xs">
                 {conflict.type.replace(/_/g, " ").toUpperCase()}
               </Badge>
+              {!conflict.hasFeasibleAlternative && conflict.status !== "resolved" && (
+                <Badge variant="critical" size="sm" className="font-mono text-xs font-semibold">
+                  NO ALTERNATIVE ON CAMPUS
+                </Badge>
+              )}
+              {conflict.status === "resolved" ? (
+                <Badge variant="success" size="sm" className="font-semibold text-xs">
+                  RESOLVED
+                </Badge>
+              ) : (
+                <Badge variant="outline" size="sm" className="font-semibold text-xs border-amber-300 text-amber-800 bg-amber-50/50">
+                  ACTION REQUIRED
+                </Badge>
+              )}
             </div>
-            {conflict.status === "resolved" && (
-              <Badge variant="success" size="sm">
-                RESOLVED
-              </Badge>
-            )}
+
+            <a
+              href="/timetable"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition shadow-2xs"
+              title="Inspect in Timetable Studio"
+            >
+              <Calendar className="w-3.5 h-3.5 text-slate-500" />
+              <span>Inspect in Studio</span>
+              <ExternalLink className="w-3 h-3 text-slate-400" />
+            </a>
           </div>
 
           <div>
             <SheetTitle className="text-lg font-bold text-slate-900 leading-snug">
               {conflict.title}
             </SheetTitle>
-            <SheetDescription className="text-xs text-slate-500 mt-1 leading-relaxed">
-              {conflict.description}
+            <SheetDescription className="text-xs text-slate-600 mt-1 leading-relaxed">
+              Schedule Version: <strong className="font-semibold text-slate-800 font-mono">VER-2.4</strong> • Academic Term: Fall 2026
             </SheetDescription>
           </div>
 
@@ -267,7 +291,7 @@ export function ConflictResolutionDrawer({
               <button
                 type="button"
                 onClick={() => setActiveTab("alternatives")}
-                className={`pb-2 border-b-2 flex items-center gap-1.5 transition-colors ${
+                className={`pb-2.5 border-b-2 flex items-center gap-1.5 transition-colors cursor-pointer ${
                   activeTab === "alternatives"
                     ? "border-[rgb(var(--color-primary))] text-[rgb(var(--color-primary))] font-semibold"
                     : "border-transparent text-slate-500 hover:text-slate-800"
@@ -279,23 +303,23 @@ export function ConflictResolutionDrawer({
               <button
                 type="button"
                 onClick={() => setActiveTab("diff")}
-                className={`pb-2 border-b-2 flex items-center gap-1.5 transition-colors ${
+                className={`pb-2.5 border-b-2 flex items-center gap-1.5 transition-colors cursor-pointer ${
                   activeTab === "diff"
                     ? "border-[rgb(var(--color-primary))] text-[rgb(var(--color-primary))] font-semibold"
                     : "border-transparent text-slate-500 hover:text-slate-800"
                 }`}
               >
                 <Layers className="h-3.5 w-3.5" />
-                <span>Ripple Intelligence Diff</span>
+                <span>Ripple Intelligence Impact Diff</span>
                 {diffReport && (
                   <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                    className={`text-xs px-2 py-0.5 rounded-full font-mono font-semibold ${
                       diffReport.isSafeToApply
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-red-100 text-red-700"
+                        ? "bg-emerald-100 text-emerald-800"
+                        : "bg-red-100 text-red-800"
                     }`}
                   >
-                    {diffReport.isSafeToApply ? "Safe" : "Clash"}
+                    {diffReport.isSafeToApply ? "Safe to Apply" : "Clash Detected"}
                   </span>
                 )}
               </button>
@@ -307,61 +331,67 @@ export function ConflictResolutionDrawer({
         <div className="p-6 space-y-6 flex-1">
           {/* Section 1: Conflict Diagnostics & Invalidity Rationale */}
           <div className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-600">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Conflict Anatomy & Resource Constraints
             </h3>
 
             {/* Invalidity Explanation Card */}
-            <div className="p-3.5 rounded-lg border border-red-200 bg-red-50/60 text-xs space-y-1.5 text-red-900">
-              <div className="flex items-center gap-1.5 font-semibold text-red-950">
-                <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
-                <span>Why Current Allocation Is Invalid:</span>
+            <div className="p-4 rounded-xl border border-rose-200 bg-rose-50/70 text-xs space-y-2 text-rose-900">
+              <div className="flex items-center gap-1.5 font-bold text-rose-950">
+                <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
+                <span>Verified Constraint Failure:</span>
               </div>
-              <p className="leading-relaxed pl-5 text-[11px] text-red-800">
-                {conflict.resolutionNotes || conflict.description}
+              <p className="leading-relaxed pl-5 text-xs text-rose-900 font-medium">
+                {conflict.description}
               </p>
+              {conflict.resolutionNotes && (
+                <div className="mt-2 pt-2 border-t border-rose-200/60 pl-5 text-xs text-rose-800">
+                  <span className="font-semibold text-rose-950">Resolution / Context Notes: </span>
+                  {conflict.resolutionNotes}
+                </div>
+              )}
             </div>
 
             {/* Resource Constraints Breakdown */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
               {/* Classroom Constraint */}
-              <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-1">
-                <div className="flex items-center gap-1 text-slate-500 text-[11px] font-medium">
-                  <MapPin className="h-3 w-3" />
+              <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
+                <div className="flex items-center gap-1 text-slate-500 text-xs font-medium">
+                  <MapPin className="h-3.5 w-3.5" />
                   <span>Room Constraint</span>
                 </div>
                 <div className="font-semibold text-slate-800">
                   {targetClassroom ? targetClassroom.code : "Unassigned"}
                 </div>
-                <div className="text-[11px] text-slate-500">
+                <div className="text-xs text-slate-500">
                   Cap: {targetClassroom?.capacity || 0} seats • {targetClassroom?.type}
                 </div>
               </div>
 
               {/* Faculty Constraint */}
-              <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-1">
-                <div className="flex items-center gap-1 text-slate-500 text-[11px] font-medium">
-                  <User className="h-3 w-3" />
+              <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
+                <div className="flex items-center gap-1 text-slate-500 text-xs font-medium">
+                  <User className="h-3.5 w-3.5" />
                   <span>Faculty Constraint</span>
                 </div>
                 <div className="font-semibold text-slate-800">
                   {targetFaculty ? targetFaculty.name : "Unassigned"}
                 </div>
-                <div className="text-[11px] text-slate-500">
+                <div className="text-xs text-slate-500">
                   {targetFaculty?.designation} • {targetFaculty?.departmentId}
                 </div>
               </div>
 
               {/* Student Group Constraint */}
-              <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-1">
-                <div className="flex items-center gap-1 text-slate-500 text-[11px] font-medium">
-                  <Users className="h-3 w-3" />
+              <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
+                <div className="flex items-center gap-1 text-slate-500 text-xs font-medium">
+                  <Users className="h-3.5 w-3.5" />
                   <span>Student Group</span>
                 </div>
                 <div className="font-semibold text-slate-800">
                   {targetSection ? targetSection.name : "Unassigned"}
                 </div>
-                <div className="text-[11px] text-slate-500">
+                <div className="text-xs text-slate-500">
                   {targetSection?.studentCount || 0} enrolled students
                 </div>
               </div>
@@ -369,7 +399,7 @@ export function ConflictResolutionDrawer({
 
             {/* Affected Sessions */}
             <div className="space-y-1.5">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
                 Affected Sessions ({affectedSessions.length}):
               </span>
               <div className="space-y-1.5">
@@ -383,16 +413,16 @@ export function ConflictResolutionDrawer({
                   return (
                     <div
                       key={s.id}
-                      className="p-2.5 rounded-md bg-white border border-slate-200 flex items-center justify-between text-xs"
+                      className="p-3 rounded-xl bg-white border border-slate-200 flex items-center justify-between text-xs"
                     >
                       <div className="space-y-0.5">
                         <div className="font-semibold text-slate-800 flex items-center gap-2">
                           <span>{sub?.code} — {sub?.title}</span>
-                          <span className="text-[10px] font-normal px-1.5 py-0.2 bg-slate-100 rounded text-slate-600">
+                          <span className="text-xs font-semibold px-2 py-0.5 bg-slate-100 rounded text-slate-700">
                             {sec?.name}
                           </span>
                         </div>
-                        <div className="text-[11px] text-slate-500 flex items-center gap-2">
+                        <div className="text-xs text-slate-500 flex items-center gap-2">
                           <span>{fac?.name}</span>
                           <span>•</span>
                           <span>{rm?.code}</span>
@@ -400,7 +430,7 @@ export function ConflictResolutionDrawer({
                           <span>{slot?.label}</span>
                         </div>
                       </div>
-                      <span className="font-mono text-[10px] text-slate-400">{s.id}</span>
+                      <span className="font-mono text-xs text-slate-400 font-semibold">{s.id}</span>
                     </div>
                   );
                 })}
@@ -433,24 +463,24 @@ export function ConflictResolutionDrawer({
                     <span>Statutory Compliance & Physical Barriers:</span>
                   </div>
 
-                  <ul className="text-[11px] text-slate-700 space-y-1 list-disc pl-4">
+                  <ul className="text-xs text-slate-700 space-y-1 list-disc pl-4">
                     {noFeasibleExplanation.reasons.map((r, i) => (
                       <li key={i}>{r}</li>
                     ))}
                   </ul>
 
                   <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                    <div className="text-[11px] font-semibold text-red-900">
+                    <div className="text-xs font-semibold text-red-900">
                       Strict Regulatory Prohibitions:
                     </div>
-                    <ul className="text-[11px] text-red-700 space-y-1 list-disc pl-4">
+                    <ul className="text-xs text-red-700 space-y-1 list-disc pl-4">
                       {noFeasibleExplanation.prohibitedRelaxations.map((p, i) => (
                         <li key={i}>{p}</li>
                       ))}
                     </ul>
                   </div>
 
-                  <div className="p-3 rounded bg-amber-50 border border-amber-200 text-[11px] text-amber-900 space-y-1.5">
+                  <div className="p-3 rounded bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1.5">
                     <span className="font-semibold block">Required Administrative Escalation Actions:</span>
                     <ul className="space-y-1 list-disc pl-4">
                       {noFeasibleExplanation.recommendedAdministrativeActions.map((a, i) => (
@@ -461,7 +491,7 @@ export function ConflictResolutionDrawer({
                 </div>
               )}
 
-              <div className="p-2.5 rounded bg-slate-900 text-white text-[11px] font-mono flex items-center justify-between">
+              <div className="p-2.5 rounded bg-slate-900 text-white text-xs font-mono flex items-center justify-between">
                 <span>Hard Constraints Silently Relaxed:</span>
                 <span className="text-emerald-400 font-bold">0 (Strictly Prohibited)</span>
               </div>
@@ -475,7 +505,7 @@ export function ConflictResolutionDrawer({
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-600">
                   Verified Alternative Solutions ({conflict.alternatives.length})
                 </h3>
-                <span className="text-[11px] text-slate-400">
+                <span className="text-xs text-slate-500">
                   Sorted by Preference Score & Feasibility
                 </span>
               </div>
@@ -527,14 +557,14 @@ export function ConflictResolutionDrawer({
                             Option {idx + 1}: {alt.solutionId}
                           </span>
                           {alt.isRecommended && (
-                            <Badge variant="success" size="sm" className="text-[10px]">
+                            <Badge variant="success" size="sm" className="text-xs">
                               Recommended
                             </Badge>
                           )}
                         </div>
 
                         <div className="flex items-center gap-1.5">
-                          <span className="text-[11px] font-mono text-slate-500">Score:</span>
+                          <span className="text-xs font-mono text-slate-500">Score:</span>
                           <span
                             className={`font-mono text-xs font-bold ${
                               alt.feasibilityScore >= 90
@@ -548,15 +578,15 @@ export function ConflictResolutionDrawer({
                       </div>
 
                       {/* Description */}
-                      <p className="text-xs text-slate-700 leading-relaxed">
+                      <p className="text-xs text-slate-700 leading-relaxed font-medium">
                         {alt.description}
                       </p>
 
                       {/* Checks Grid */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-slate-100 text-[11px]">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-slate-100 text-xs">
                         {/* Target Room */}
                         <div className="space-y-0.5">
-                          <span className="text-slate-400 block text-[10px]">Room Allocation</span>
+                          <span className="text-slate-400 block text-xs">Room Allocation</span>
                           <span className="font-semibold text-slate-800">
                             {altClassroom?.code || "Current"}
                           </span>
@@ -564,16 +594,16 @@ export function ConflictResolutionDrawer({
 
                         {/* Capacity & Equipment Check */}
                         <div className="space-y-0.5">
-                          <span className="text-slate-400 block text-[10px]">Capacity Check</span>
+                          <span className="text-slate-400 block text-xs">Capacity Check</span>
                           <span
                             className={`flex items-center gap-1 font-medium ${
                               capacityOk ? "text-emerald-600" : "text-red-600"
                             }`}
                           >
                             {capacityOk ? (
-                              <CheckCircle2 className="h-3 w-3" />
+                              <CheckCircle2 className="h-3.5 w-3.5" />
                             ) : (
-                              <XCircle className="h-3 w-3" />
+                              <XCircle className="h-3.5 w-3.5" />
                             )}
                             {altClassroom?.capacity || 0} seats ({targetSection?.studentCount || 0} req)
                           </span>
@@ -581,16 +611,16 @@ export function ConflictResolutionDrawer({
 
                         {/* Faculty Check */}
                         <div className="space-y-0.5">
-                          <span className="text-slate-400 block text-[10px]">Faculty Check</span>
+                          <span className="text-slate-400 block text-xs">Faculty Check</span>
                           <span className="flex items-center gap-1 font-medium text-emerald-600">
-                            <CheckCircle2 className="h-3 w-3" />
+                            <CheckCircle2 className="h-3.5 w-3.5" />
                             {altFaculty?.name.split(" ")[1] || "Available"}
                           </span>
                         </div>
 
                         {/* Downstream Effect */}
                         <div className="space-y-0.5">
-                          <span className="text-slate-400 block text-[10px]">Ripple Impact</span>
+                          <span className="text-slate-400 block text-xs">Ripple Impact</span>
                           <span
                             className={`font-semibold flex items-center gap-1 ${
                               alt.downstreamClashCount === 0
@@ -599,9 +629,9 @@ export function ConflictResolutionDrawer({
                             }`}
                           >
                             {alt.downstreamClashCount === 0 ? (
-                              <CheckCircle2 className="h-3 w-3" />
+                              <CheckCircle2 className="h-3.5 w-3.5" />
                             ) : (
-                              <AlertTriangle className="h-3 w-3" />
+                              <AlertTriangle className="h-3.5 w-3.5" />
                             )}
                             {alt.downstreamClashCount} cascade clashes
                           </span>
@@ -619,29 +649,29 @@ export function ConflictResolutionDrawer({
             <div className="space-y-4">
               {/* Safety Banner */}
               <div
-                className={`p-3.5 rounded-xl border flex items-center justify-between text-xs ${
+                className={`p-4 rounded-xl border flex items-center justify-between text-xs ${
                   diffReport.isSafeToApply
-                    ? "bg-emerald-50/70 border-emerald-200 text-emerald-950"
-                    : "bg-red-50/70 border-red-200 text-red-950"
+                    ? "bg-emerald-50/80 border-emerald-200 text-emerald-950"
+                    : "bg-red-50/80 border-red-200 text-red-950"
                 }`}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                   {diffReport.isSafeToApply ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
                   ) : (
-                    <XCircle className="h-4 w-4 text-red-600" />
+                    <XCircle className="h-5 w-5 text-red-600 shrink-0" />
                   )}
                   <div>
-                    <span className="font-semibold block">
+                    <span className="font-bold text-xs block text-slate-900">
                       {diffReport.isSafeToApply
                         ? "Deterministic Verification: Safe to Apply"
                         : "Caution: Unsafe Schedule Proposal"}
                     </span>
-                    <span className="text-[11px] opacity-80">{diffReport.explanation}</span>
+                    <span className="text-xs text-slate-600 mt-0.5 block">{diffReport.explanation}</span>
                   </div>
                 </div>
-                <div className="text-right font-mono">
-                  <span className="text-[10px] uppercase opacity-70 block">Net Clash Delta</span>
+                <div className="text-right font-mono shrink-0 pl-3">
+                  <span className="text-xs uppercase text-slate-500 block">Net Clash Delta</span>
                   <span className="font-bold text-sm text-emerald-700">
                     {diffReport.netClashDelta} clash
                   </span>
@@ -656,25 +686,25 @@ export function ConflictResolutionDrawer({
                 {diffReport.changedSessions.map((ch) => (
                   <div
                     key={ch.sessionId}
-                    className="p-3 bg-white rounded-lg border border-slate-200 text-xs space-y-2"
+                    className="p-3.5 bg-white rounded-xl border border-slate-200 text-xs space-y-2"
                   >
                     <div className="font-semibold text-slate-800">
                       {ch.subjectCode} — {ch.subjectTitle} ({ch.sectionCode})
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
-                      <div className="p-2 bg-slate-50 rounded border border-slate-100">
-                        <span className="text-slate-400 block text-[9px] uppercase">
+                    <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                      <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                        <span className="text-slate-400 block text-xs uppercase font-sans">
                           Before Allocation:
                         </span>
-                        <div className="text-red-700 font-semibold">{ch.before.classroomCode}</div>
+                        <div className="text-red-700 font-bold">{ch.before.classroomCode}</div>
                         <div className="text-slate-600">{ch.before.timeSlotLabel}</div>
                         <div className="text-slate-500">{ch.before.facultyName}</div>
                       </div>
-                      <div className="p-2 bg-emerald-50/60 rounded border border-emerald-100">
-                        <span className="text-emerald-600 block text-[9px] uppercase">
+                      <div className="p-2.5 bg-emerald-50/60 rounded-lg border border-emerald-100">
+                        <span className="text-emerald-700 block text-xs uppercase font-sans font-medium">
                           After Allocation (Proposed):
                         </span>
-                        <div className="text-emerald-700 font-semibold">{ch.after.classroomCode}</div>
+                        <div className="text-emerald-700 font-bold">{ch.after.classroomCode}</div>
                         <div className="text-slate-600">{ch.after.timeSlotLabel}</div>
                         <div className="text-slate-500">{ch.after.facultyName}</div>
                       </div>
@@ -686,13 +716,13 @@ export function ConflictResolutionDrawer({
               {/* Conflicts Removed & Conflicts Created */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 {/* Conflicts Removed */}
-                <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-1.5">
-                  <span className="font-semibold text-emerald-800 flex items-center gap-1.5 text-[11px]">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                <div className="p-3.5 bg-white rounded-xl border border-slate-200 space-y-1.5">
+                  <span className="font-semibold text-emerald-800 flex items-center gap-1.5 text-xs">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                     Conflicts Removed ({diffReport.conflictsRemoved.length})
                   </span>
                   {diffReport.conflictsRemoved.length > 0 ? (
-                    <ul className="text-[11px] text-slate-600 space-y-1">
+                    <ul className="text-xs text-slate-600 space-y-1">
                       {diffReport.conflictsRemoved.map((c) => (
                         <li key={c.id} className="truncate">
                           • {c.title}
@@ -700,22 +730,22 @@ export function ConflictResolutionDrawer({
                       ))}
                     </ul>
                   ) : (
-                    <span className="text-[11px] text-slate-400 italic">None</span>
+                    <span className="text-xs text-slate-400 italic">None</span>
                   )}
                 </div>
 
                 {/* New Conflicts Created */}
-                <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-1.5">
-                  <span className="font-semibold text-slate-800 flex items-center gap-1.5 text-[11px]">
+                <div className="p-3.5 bg-white rounded-xl border border-slate-200 space-y-1.5">
+                  <span className="font-semibold text-slate-800 flex items-center gap-1.5 text-xs">
                     {diffReport.newConflictsCreated.length > 0 ? (
-                      <XCircle className="h-3.5 w-3.5 text-red-600" />
+                      <XCircle className="h-4 w-4 text-red-600" />
                     ) : (
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                     )}
                     New Conflicts Created ({diffReport.newConflictsCreated.length})
                   </span>
                   {diffReport.newConflictsCreated.length > 0 ? (
-                    <ul className="text-[11px] text-red-600 space-y-1">
+                    <ul className="text-xs text-red-600 space-y-1">
                       {diffReport.newConflictsCreated.map((h, i) => (
                         <li key={i} className="truncate">
                           • {h.title}
@@ -723,7 +753,7 @@ export function ConflictResolutionDrawer({
                       ))}
                     </ul>
                   ) : (
-                    <span className="text-[11px] text-emerald-600 font-medium">
+                    <span className="text-xs text-emerald-600 font-medium">
                       Zero new conflicts introduced
                     </span>
                   )}
@@ -731,17 +761,17 @@ export function ConflictResolutionDrawer({
               </div>
 
               {/* Hard Constraints Satisfied */}
-              <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-1.5 text-xs">
-                <span className="font-semibold text-slate-800 block text-[11px]">
+              <div className="p-3.5 bg-white rounded-xl border border-slate-200 space-y-1.5 text-xs">
+                <span className="font-semibold text-slate-800 block text-xs">
                   Hard Constraints Satisfied:
                 </span>
                 <div className="flex flex-wrap gap-1.5">
                   {diffReport.hardConstraintsSatisfied.map((hc, idx) => (
                     <span
                       key={idx}
-                      className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-mono flex items-center gap-1"
+                      className="px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 text-xs font-mono flex items-center gap-1"
                     >
-                      <Check className="h-2.5 w-2.5 text-emerald-600" />
+                      <Check className="h-3 w-3 text-emerald-600" />
                       {hc}
                     </span>
                   ))}
@@ -750,15 +780,15 @@ export function ConflictResolutionDrawer({
 
               {/* Soft Preferences Impact */}
               {diffReport.softPreferencesAffected.length > 0 && (
-                <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-2 text-xs">
-                  <span className="font-semibold text-slate-800 block text-[11px]">
+                <div className="p-3.5 bg-white rounded-xl border border-slate-200 space-y-2 text-xs">
+                  <span className="font-semibold text-slate-800 block text-xs">
                     Soft Preference Trajectory:
                   </span>
                   <div className="space-y-1.5">
                     {diffReport.softPreferencesAffected.map((sp, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center justify-between text-[11px] border-b border-slate-50 pb-1"
+                        className="flex items-center justify-between text-xs border-b border-slate-50 pb-1"
                       >
                         <span className="text-slate-600">{sp.name}</span>
                         <span
@@ -785,69 +815,74 @@ export function ConflictResolutionDrawer({
               variant="outline"
               size="sm"
               onClick={() => onOpenChange(false)}
+              className="text-xs"
             >
-              Cancel
+              {conflict.status === "resolved" ? "Close" : "Cancel"}
             </Button>
 
-            {canUndo && (
+            {conflict.status === "resolved" && (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={handleUndo}
                 disabled={isUndoing}
-                className="gap-1.5 text-amber-700 border-amber-200 hover:bg-amber-50"
+                className="gap-1.5 text-xs text-amber-700 border-amber-300 hover:bg-amber-50 font-medium"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                <span>{isUndoing ? "Undoing..." : "Undo Last Change"}</span>
+                <span>{isUndoing ? "Restoring Schedule..." : "Undo Conflict Resolution"}</span>
               </Button>
             )}
           </div>
 
           <div className="flex items-center gap-2">
-            {conflict.hasFeasibleAlternative && (
+            {conflict.status === "resolved" ? (
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                <span>Resolution Persisted in Schedule</span>
+              </div>
+            ) : conflict.hasFeasibleAlternative ? (
               <>
                 {activeTab === "alternatives" ? (
                   <Button
                     type="button"
-                    variant="outline"
                     size="sm"
                     onClick={() => setActiveTab("diff")}
-                    className="gap-1 text-slate-700"
+                    disabled={!selectedSolutionId}
+                    className="gap-1.5 text-xs bg-slate-900 hover:bg-slate-800 text-white font-semibold shadow-xs"
                   >
-                    <span>Preview Diff</span>
+                    <span>Preview Ripple Impact</span>
                     <ChevronRight className="h-3.5 w-3.5" />
                   </Button>
                 ) : (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setActiveTab("alternatives")}
-                    className="text-slate-700"
-                  >
-                    Back to Alternatives
-                  </Button>
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setActiveTab("alternatives")}
+                      className="text-xs text-slate-700 font-medium"
+                    >
+                      Back to Alternatives
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleApply}
+                      disabled={
+                        !selectedSolutionId ||
+                        isApplying ||
+                        Boolean(diffReport && !diffReport.isSafeToApply)
+                      }
+                      className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      <span>{isApplying ? "Revalidating & Committing..." : "Confirm & Commit Resolution"}</span>
+                    </Button>
+                  </>
                 )}
-
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleApply}
-                  disabled={
-                    !selectedSolutionId ||
-                    isApplying ||
-                    Boolean(diffReport && !diffReport.isSafeToApply)
-                  }
-                  className="gap-1.5"
-                >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  <span>{isApplying ? "Revalidating..." : "Apply Resolution"}</span>
-                </Button>
               </>
-            )}
-
-            {!conflict.hasFeasibleAlternative && (
+            ) : (
               <Button
                 type="button"
                 variant="destructive"
@@ -856,12 +891,12 @@ export function ConflictResolutionDrawer({
                   toast({
                     title: "Administrative Escalation Initiated",
                     description:
-                      "Notified Academic Dean & Life Sciences HOD regarding mandatory BSL-3 laboratory shutdown.",
+                      "Notified Academic Dean & Life Sciences HOD regarding statutory BSL-3 laboratory containment restrictions.",
                     variant: "default",
                   });
                   onOpenChange(false);
                 }}
-                className="gap-1.5"
+                className="gap-1.5 text-xs"
               >
                 <span>Escalate to Dean</span>
                 <ArrowRight className="h-3.5 w-3.5" />

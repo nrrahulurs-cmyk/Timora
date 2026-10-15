@@ -700,7 +700,8 @@ export class LocalDemoSchedulingRepository implements SchedulingRepository {
     return sessions;
   }
 
-  async getConflicts(status: "active" | "resolved" | "ignored" = "active"): Promise<ConflictRecord[]> {
+  async getConflicts(status?: "active" | "resolved" | "ignored"): Promise<ConflictRecord[]> {
+    if (!status) return this.dataset.conflicts;
     return this.dataset.conflicts.filter((c) => c.status === status);
   }
 
@@ -826,28 +827,36 @@ export class LocalDemoSchedulingRepository implements SchedulingRepository {
   async undoConflictResolution(
     conflictId: string
   ): Promise<{ success: boolean; message: string; restoredSession?: TimetableSession }> {
-    const snapshot = this.undoSnapshots.get(conflictId);
-    if (!snapshot) {
+    const conflict = this.dataset.conflicts.find((c) => c.id === conflictId);
+    if (!conflict) {
       return {
         success: false,
-        message: `No undo snapshot found for conflict ${conflictId}.`,
+        message: `Conflict ${conflictId} not found.`,
       };
     }
 
-    const session = this.dataset.timetableSessions.find((s) => s.id === snapshot.sessionId);
-    const conflict = this.dataset.conflicts.find((c) => c.id === conflictId);
+    const snapshot = this.undoSnapshots.get(conflictId);
+    let session: TimetableSession | undefined;
 
-    if (session) {
-      session.classroomId = snapshot.before.classroomId;
-      session.timeSlotId = snapshot.before.timeSlotId;
-      session.facultyId = snapshot.before.facultyId;
+    if (snapshot) {
+      session = this.dataset.timetableSessions.find((s) => s.id === snapshot.sessionId);
+      if (session) {
+        session.classroomId = snapshot.before.classroomId;
+        session.timeSlotId = snapshot.before.timeSlotId;
+        session.facultyId = snapshot.before.facultyId;
+      }
+      this.undoSnapshots.delete(conflictId);
+    } else if (conflict.sessionIds && conflict.sessionIds.length > 0) {
+      session = this.dataset.timetableSessions.find((s) => conflict.sessionIds.includes(s.id));
+      if (session && conflict.classroomId) {
+        session.classroomId = conflict.classroomId;
+      }
+      if (session && conflict.timeSlotId) {
+        session.timeSlotId = conflict.timeSlotId;
+      }
     }
 
-    if (conflict) {
-      conflict.status = "active";
-    }
-
-    this.undoSnapshots.delete(conflictId);
+    conflict.status = "active";
 
     const historyItem: ChangeHistoryRecord = {
       id: `HIST-UNDO-${Date.now()}`,
@@ -868,7 +877,7 @@ export class LocalDemoSchedulingRepository implements SchedulingRepository {
 
     return {
       success: true,
-      message: `Conflict resolution undone: restored session ${snapshot.sessionId} to previous state.`,
+      message: `Conflict resolution undone: restored session ${session?.id || conflictId} to active conflict state.`,
       restoredSession: session ? { ...session } : undefined,
     };
   }
