@@ -270,7 +270,7 @@ describe("Phase 6: Live Supabase Database Connectivity & Data Integrity", () => 
     const fallTerm = terms.academicTerms.find((t) => t.id === "TERM-FALL-2026");
     expect(fallTerm).toBeDefined();
     expect(fallTerm?.name).toContain("Fall 2026");
-  });
+  }, 30000);
 
   it("fetches departments and verifying institutional entity integrity", async () => {
     const depts = await repo.getDepartments();
@@ -323,5 +323,5 @@ describe("Phase 6: Live Supabase Database Connectivity & Data Integrity", () => 
     const kpi = await repo.getKpiMetrics();
     expect(kpi.unresolvedConflicts.count).toBeGreaterThanOrEqual(1);
     expect(kpi.availableRooms.total).toBeGreaterThanOrEqual(12);
-  });
+  }, 30000);
 });

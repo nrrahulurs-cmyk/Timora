@@ -30,6 +30,7 @@ import {
   downloadFile,
   type ExportMetadata,
 } from "@/lib/export/timetable-export-service";
+import { getWeekScheduleDetails } from "@/lib/utils/date-utils";
 
 interface StagedMove {
   sessionId: string;
@@ -327,13 +328,13 @@ export default function TimetableStudioPage() {
     try {
       const activeDept = dataset.departments.find((d) => d.id === filters.departmentId);
       const activeSec = dataset.sections.find((s) => s.id === filters.sectionId);
-      const weekNumber = 9 + filters.weekOffset;
-      const weekLabel = `Week ${weekNumber}`;
+      const weekInfo = getWeekScheduleDetails(filters.weekOffset);
+      const weekLabel = `Week ${weekInfo.weekNumber}`;
 
       const metadata: ExportMetadata = {
         institutionName: "Timora Institute of Technology",
         academicTerm: "Fall 2026 (Odd Semester)",
-        weekLabel: `Week ${weekNumber} (Oct 19 – Oct 24, 2026)`,
+        weekLabel: `Week ${weekInfo.weekNumber} (${weekInfo.formattedRange})`,
         departmentName: activeDept?.name,
         sectionCode: activeSec?.sectionCode,
         generatedAt: new Date().toLocaleString(),
@@ -443,15 +444,19 @@ export default function TimetableStudioPage() {
           onEmptySlotClick={(day, slotIndex) => {
             toast({
               title: "Open Time Slot",
-              description: `Slot ${slotIndex} on ${day} is vacant. Use 'Add Section' to assign a class.`,
+              description: `Slot ${slotIndex} on ${day} is vacant. You can schedule a new class here.`,
               variant: "info",
             });
+            setNewSessionOpen(true);
           }}
           includeSaturday={true}
+          weekOffset={filters.weekOffset}
         />
       ) : (
         <TableView
           sessions={filteredSessions}
+          timeSlots={dataset.timeSlots}
+          weekOffset={filters.weekOffset}
           onSelectSession={(enr) => setSelectedSession(enr)}
           onMoveSession={(enr) => setMovingSession(enr)}
           pageSize={10}
@@ -498,7 +503,7 @@ export default function TimetableStudioPage() {
               })`
             : "All Cohorts"
         }
-        weekLabel={`Week ${9 + filters.weekOffset} (Oct 19 – Oct 24, 2026)`}
+        weekLabel={`Week ${9 + filters.weekOffset} (${getWeekScheduleDetails(filters.weekOffset).formattedRange})`}
         isExporting={isExporting}
       />
 

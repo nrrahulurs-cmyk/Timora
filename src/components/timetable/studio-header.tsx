@@ -9,9 +9,9 @@ import {
   CalendarCheck,
   AlertTriangle,
   GitBranch,
-  Search,
   Plus,
   ChevronRight,
+  Sparkles,
 } from "lucide-react";
 
 interface StudioHeaderProps {
@@ -24,7 +24,6 @@ interface StudioHeaderProps {
   onPublish: () => void;
   onReset: () => void;
   onNewSession?: () => void;
-  onSearchClick?: () => void;
   isSaving?: boolean;
 }
 
@@ -38,11 +37,10 @@ export function StudioHeader({
   onPublish,
   onReset,
   onNewSession,
-  onSearchClick,
   isSaving = false,
 }: StudioHeaderProps) {
   return (
-    <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100/90 mb-4 shrink-0">
+    <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100/90 mb-4 shrink-0">
       {/* ── Breadcrumb & Title ────────────────────────────────────────── */}
       <div>
         <div className="flex items-center gap-1.5 text-xs font-medium text-slate-400 mb-1">
@@ -81,9 +79,9 @@ export function StudioHeader({
             <Badge
               variant="critical"
               size="sm"
-              className="gap-1 font-semibold rounded-full text-[11px]"
+              className="gap-1 font-semibold rounded-full text-[11px] bg-rose-50 text-rose-700 border-rose-200"
             >
-              <AlertTriangle className="h-3 w-3" />
+              <AlertTriangle className="h-3 w-3 text-rose-500" />
               <span>{conflictCount} Conflicts Flagged</span>
             </Badge>
           ) : (
@@ -105,25 +103,8 @@ export function StudioHeader({
         </div>
       </div>
 
-      {/* ── Stitch Top Actions: Quick Search + Grouped Buttons ───────── */}
-      <div className="flex flex-wrap items-center gap-2.5">
-        {/* Quick search input matching Stitch */}
-        <div
-          className="relative w-48 sm:w-56 cursor-pointer group"
-          onClick={onSearchClick}
-        >
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-colors" />
-          <input
-            type="text"
-            readOnly
-            placeholder="Quick search..."
-            className="w-full bg-slate-50 hover:bg-slate-100/70 border border-slate-200/70 rounded-full pl-8 pr-7 py-1.5 text-xs text-slate-700 placeholder-slate-400 focus:outline-none transition cursor-pointer"
-          />
-          <kbd className="hidden sm:inline-flex absolute right-2 top-1.5 pointer-events-none text-[9px] text-slate-400 font-mono">
-            ⌘K
-          </kbd>
-        </div>
-
+      {/* ── Header Actions ───────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2">
         {/* Undo button */}
         <Button
           variant="outline"
@@ -143,7 +124,7 @@ export function StudioHeader({
           size="sm"
           onClick={onSave}
           disabled={stagedChangesCount === 0 || isSaving}
-          className={`gap-1.5 h-8 text-xs rounded-full px-3.5 ${
+          className={`gap-1.5 h-8 text-xs rounded-full px-3.5 transition-all ${
             stagedChangesCount > 0
               ? "bg-[#FF6B4A] hover:bg-[#e05b3d] text-white font-semibold shadow-xs"
               : "border-slate-200/80 text-slate-400 disabled:opacity-40"
@@ -164,7 +145,7 @@ export function StudioHeader({
           <span>Publish Schedule</span>
         </Button>
 
-        {/* Stitch + New Session button */}
+        {/* New Session button */}
         <Button
           variant="default"
           size="sm"

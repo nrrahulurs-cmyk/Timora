@@ -7,7 +7,6 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
-  Filter,
   SlidersHorizontal,
   X,
   AlertTriangle,
@@ -15,23 +14,14 @@ import {
   MapPin,
   GraduationCap,
   Download,
-  FileText,
-  FileSpreadsheet,
-  File,
   ChevronDown,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { getWeekScheduleDetails } from "@/lib/utils/date-utils";
 import type { Department, StudentSection, Classroom, FacultyMember } from "@/types/domain";
 
 export interface StudioFilters {
@@ -77,30 +67,10 @@ export function StudioToolbar({
 }: StudioToolbarProps) {
   const [showAdvanced, setShowAdvanced] = React.useState(false);
 
-  // Compute week range dates
-  const weekDates = React.useMemo(() => {
-    const baseMonday = new Date(2026, 9, 19); // Oct 19, 2026 (Fall Week 9)
-    baseMonday.setDate(baseMonday.getDate() + filters.weekOffset * 7);
-    const saturday = new Date(baseMonday);
-    saturday.setDate(baseMonday.getDate() + 5);
-
-    const mStr = baseMonday.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    const sStr = saturday.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-    const weekNumber = 9 + filters.weekOffset;
-    return `Week ${weekNumber}: ${mStr} – ${sStr}`;
+  // Compute accurate week range using dedicated date utility
+  const weekDetails = React.useMemo(() => {
+    return getWeekScheduleDetails(filters.weekOffset);
   }, [filters.weekOffset]);
-
-  // Active cohort label
-  const activeCohortLabel = React.useMemo(() => {
-    const activeSec = sections.find((s) => s.id === filters.sectionId);
-    if (activeSec) {
-      return `Cohort: ${activeSec.semester}th Sem (${activeSec.sectionCode})`;
-    }
-    if (filters.semester !== "all") {
-      return `Cohort: Semester ${filters.semester}`;
-    }
-    return "All Cohorts";
-  }, [sections, filters.sectionId, filters.semester]);
 
   // Filter sections by department/semester
   const availableSections = React.useMemo(() => {
@@ -135,19 +105,24 @@ export function StudioToolbar({
     });
   };
 
+  const selectedDepartment = departments.find((d) => d.id === filters.departmentId);
+  const selectedSection = sections.find((s) => s.id === filters.sectionId);
+  const selectedClassroom = classrooms.find((c) => c.id === filters.classroomId);
+  const selectedFaculty = faculty.find((f) => f.id === filters.facultyId);
+
   return (
-    <div className="space-y-3 bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs">
-      {/* ── Stitch Primary Row: Segmented Controls, Date Navigator, Cohort & Export ─ */}
+    <div className="space-y-3 bg-white p-3.5 sm:p-4 rounded-3xl border border-slate-200/80 shadow-xs">
+      {/* ── Primary Row: View Switch, Week Nav, Quick Filters, Filter Toggle & Export ─ */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {/* Left: View Mode Segmented Control + Week Stepper */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Segmented View Switcher Pill */}
-          <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-full text-xs font-medium">
+        {/* Left: View Mode Toggle & Week Stepper */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Segmented View Switcher */}
+          <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-full text-xs font-medium">
             <button
               type="button"
               onClick={() => onViewModeChange("grid")}
               className={cn(
-                "px-3.5 py-1 rounded-full transition-all duration-150",
+                "px-3.5 py-1 rounded-full transition-all duration-150 cursor-pointer",
                 viewMode === "grid"
                   ? "bg-white text-slate-900 shadow-2xs font-semibold"
                   : "text-slate-500 hover:text-slate-800"
@@ -159,7 +134,7 @@ export function StudioToolbar({
               type="button"
               onClick={() => onViewModeChange("table")}
               className={cn(
-                "px-3.5 py-1 rounded-full transition-all duration-150",
+                "px-3.5 py-1 rounded-full transition-all duration-150 cursor-pointer",
                 viewMode === "table"
                   ? "bg-white text-slate-900 shadow-2xs font-semibold"
                   : "text-slate-500 hover:text-slate-800"
@@ -169,26 +144,28 @@ export function StudioToolbar({
             </button>
           </div>
 
-          {/* Date Navigator Pill */}
+          {/* Week Date Navigator Pill */}
           <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-50 border border-slate-200/70 rounded-full text-xs">
             <button
               type="button"
               onClick={() => onFilterChange({ ...filters, weekOffset: filters.weekOffset - 1 })}
-              className="text-slate-400 hover:text-slate-700 p-0.5 rounded-full hover:bg-slate-200/50 transition"
+              className="text-slate-400 hover:text-slate-700 p-0.5 rounded-full hover:bg-slate-200/50 transition cursor-pointer"
               title="Previous Week"
+              aria-label="Previous Week"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
             </button>
 
-            <span className="font-semibold text-slate-700 px-1.5 min-w-[150px] text-center tracking-tight">
-              {weekDates}
+            <span className="font-semibold text-slate-800 px-1.5 min-w-[170px] text-center tracking-tight select-none">
+              Week {weekDetails.weekNumber}: {weekDetails.formattedRange}
             </span>
 
             <button
               type="button"
               onClick={() => onFilterChange({ ...filters, weekOffset: filters.weekOffset + 1 })}
-              className="text-slate-400 hover:text-slate-700 p-0.5 rounded-full hover:bg-slate-200/50 transition"
+              className="text-slate-400 hover:text-slate-700 p-0.5 rounded-full hover:bg-slate-200/50 transition cursor-pointer"
               title="Next Week"
+              aria-label="Next Week"
             >
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
@@ -197,7 +174,8 @@ export function StudioToolbar({
               <button
                 type="button"
                 onClick={() => onFilterChange({ ...filters, weekOffset: 0 })}
-                className="text-[10px] font-semibold text-[rgb(var(--color-primary))] px-1.5 py-0.2 bg-blue-50 border border-blue-200/60 rounded-full ml-0.5"
+                className="text-[10px] font-semibold text-[rgb(var(--color-primary))] px-2 py-0.5 bg-blue-50 hover:bg-blue-100 border border-blue-200/60 rounded-full ml-1 transition cursor-pointer"
+                title="Return to current week"
               >
                 Today
               </button>
@@ -205,9 +183,9 @@ export function StudioToolbar({
           </div>
         </div>
 
-        {/* Right: Cohort Selector, Filter Toggle & Export Trigger */}
+        {/* Right: Primary Quick Selects, Filter Button & Export */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Cohort Selector Pill Dropdown */}
+          {/* Cohort Selector Dropdown */}
           <div className="relative">
             <select
               value={filters.sectionId}
@@ -259,7 +237,7 @@ export function StudioToolbar({
             )}
           >
             <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400" />
-            <span>Filter</span>
+            <span>Filters</span>
             {activeFilterCount > 0 && (
               <span className="w-4 h-4 rounded-full bg-[rgb(var(--color-primary))] text-white text-[10px] flex items-center justify-center font-bold">
                 {activeFilterCount}
@@ -267,7 +245,7 @@ export function StudioToolbar({
             )}
           </button>
 
-          {/* Stitch Export Button Pill */}
+          {/* Export Button */}
           <button
             type="button"
             id="timetable-export-button"
@@ -287,22 +265,23 @@ export function StudioToolbar({
         </div>
       </div>
 
-      {/* ── Secondary Row: Search & Advanced Filters (Expandable) ──────── */}
+      {/* ── Collapsible Filter Panel ───────────────────────────────────── */}
       {showAdvanced && (
-        <div className="pt-2.5 mt-2 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2.5 items-center">
+        <div className="pt-3 mt-2 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2.5 items-center bg-slate-50/50 p-3 rounded-2xl">
           {/* Quick Search */}
-          <div className="relative md:col-span-2">
+          <div className="relative sm:col-span-2 lg:col-span-2">
             <Input
               value={filters.searchQuery}
               onChange={(e) => onFilterChange({ ...filters, searchQuery: e.target.value })}
-              placeholder="Search by code, title, room or instructor..."
+              placeholder="Search code, title, room or instructor..."
               leftIcon={<Search className="h-3.5 w-3.5 text-slate-400" />}
-              className="h-8.5 text-xs bg-slate-50/70 border-slate-200"
+              className="h-8.5 text-xs bg-white border-slate-200"
             />
             {filters.searchQuery && (
               <button
                 onClick={() => onFilterChange({ ...filters, searchQuery: "" })}
                 className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600"
+                aria-label="Clear search"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -314,7 +293,7 @@ export function StudioToolbar({
             <select
               value={filters.classroomId}
               onChange={(e) => onFilterChange({ ...filters, classroomId: e.target.value })}
-              className="h-8.5 w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
+              className="h-8.5 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700"
             >
               <option value="all">All Classrooms ({classrooms.length})</option>
               {classrooms.map((c) => (
@@ -330,7 +309,7 @@ export function StudioToolbar({
             <select
               value={filters.facultyId}
               onChange={(e) => onFilterChange({ ...filters, facultyId: e.target.value })}
-              className="h-8.5 w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
+              className="h-8.5 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700"
             >
               <option value="all">All Faculty ({faculty.length})</option>
               {faculty.map((f) => (
@@ -351,10 +330,10 @@ export function StudioToolbar({
                   conflictStatus: e.target.value as "all" | "conflicted" | "clean",
                 })
               }
-              className="h-8.5 w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
+              className="h-8.5 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700"
             >
-              <option value="all">All Sessions</option>
-              <option value="conflicted">⚠️ Conflicted Sessions Only</option>
+              <option value="all">All Statuses</option>
+              <option value="conflicted">⚠️ Conflicted Only</option>
               <option value="clean">✓ Conflict-Free Only</option>
             </select>
 
@@ -363,7 +342,7 @@ export function StudioToolbar({
                 variant="ghost"
                 size="sm"
                 onClick={resetFilters}
-                className="h-8 text-xs text-slate-500 hover:text-slate-800 px-2 shrink-0"
+                className="h-8.5 text-xs text-slate-500 hover:text-slate-800 px-2 shrink-0 rounded-lg hover:bg-slate-200/50"
                 title="Reset all filters"
               >
                 Clear
@@ -373,18 +352,109 @@ export function StudioToolbar({
         </div>
       )}
 
-      {/* Results Filter Summary pill */}
-      <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
-        <div className="flex items-center gap-2">
-          <span>Showing <strong className="text-slate-700 font-semibold">{totalFilteredCount}</strong> sessions</span>
-          {activeFilterCount > 0 && (
-            <Badge variant="outline" size="sm" className="bg-slate-50 border-slate-200 text-slate-600 font-normal">
-              Active Filters: {activeFilterCount}
-            </Badge>
+      {/* ── Active Filters Chips Bar ──────────────────────────────────── */}
+      {activeFilterCount > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100">
+          <span className="text-[11px] font-medium text-slate-400 mr-1">Active filters:</span>
+
+          {filters.departmentId !== "all" && selectedDepartment && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-800 border border-blue-200/60">
+              Dept: {selectedDepartment.code}
+              <button
+                type="button"
+                onClick={() => onFilterChange({ ...filters, departmentId: "all" })}
+                className="hover:text-blue-950"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
           )}
+
+          {filters.sectionId !== "all" && selectedSection && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-indigo-50 text-indigo-800 border border-indigo-200/60">
+              Cohort: {selectedSection.sectionCode}
+              <button
+                type="button"
+                onClick={() => onFilterChange({ ...filters, sectionId: "all" })}
+                className="hover:text-indigo-950"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+
+          {filters.classroomId !== "all" && selectedClassroom && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200/60">
+              Room: {selectedClassroom.code}
+              <button
+                type="button"
+                onClick={() => onFilterChange({ ...filters, classroomId: "all" })}
+                className="hover:text-emerald-950"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+
+          {filters.facultyId !== "all" && selectedFaculty && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 text-purple-800 border border-purple-200/60">
+              Faculty: {selectedFaculty.name}
+              <button
+                type="button"
+                onClick={() => onFilterChange({ ...filters, facultyId: "all" })}
+                className="hover:text-purple-950"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+
+          {filters.conflictStatus !== "all" && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-rose-50 text-rose-800 border border-rose-200/60">
+              {filters.conflictStatus === "conflicted" ? "⚠️ Conflicted Only" : "✓ Clean Only"}
+              <button
+                type="button"
+                onClick={() => onFilterChange({ ...filters, conflictStatus: "all" })}
+                className="hover:text-rose-950"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+
+          {filters.searchQuery && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-800 border border-slate-200">
+              &ldquo;{filters.searchQuery}&rdquo;
+              <button
+                type="button"
+                onClick={() => onFilterChange({ ...filters, searchQuery: "" })}
+                className="hover:text-slate-950"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="text-[11px] text-slate-500 hover:text-slate-800 underline ml-1 cursor-pointer"
+          >
+            Clear all
+          </button>
         </div>
-        <div className="text-[11px] text-slate-400 hidden sm:block">
-          Click any class card to inspect room equipment, faculty availability, and resolution options.
+      )}
+
+      {/* ── Summary & Helper Text ────────────────────────────────────── */}
+      <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
+        <div className="flex items-center gap-2">
+          <span>
+            Showing <strong className="text-slate-800 font-semibold">{totalFilteredCount}</strong>{" "}
+            scheduled sessions
+          </span>
+        </div>
+        <div className="text-[11px] text-slate-400 hidden md:block">
+          Click any session card to inspect details, validate constraints, and reschedule.
         </div>
       </div>
     </div>

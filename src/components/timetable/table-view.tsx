@@ -15,9 +15,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { EnrichedSession } from "./class-card";
+import type { TimeSlot } from "@/types/domain";
+import { getWeekScheduleDetails } from "@/lib/utils/date-utils";
 
 interface TableViewProps {
   sessions: EnrichedSession[];
+  timeSlots?: TimeSlot[];
+  weekOffset?: number;
   onSelectSession: (session: EnrichedSession) => void;
   onMoveSession: (session: EnrichedSession) => void;
   pageSize?: number;
@@ -37,6 +41,8 @@ const DAY_ORDER: Record<string, number> = {
 
 export function TableView({
   sessions,
+  timeSlots = [],
+  weekOffset = 0,
   onSelectSession,
   onMoveSession,
   pageSize = 10,
@@ -66,9 +72,11 @@ export function TableView({
           cmp = (a.section?.sectionCode || "").localeCompare(b.section?.sectionCode || "");
           break;
         case "day": {
-          const aDayVal = a.session.timeSlotId ? DAY_ORDER[a.session.timeSlotId.split("-")[1]] || 0 : 0;
-          const bDayVal = b.session.timeSlotId ? DAY_ORDER[b.session.timeSlotId.split("-")[1]] || 0 : 0;
-          cmp = aDayVal - bDayVal;
+          const aSlot = timeSlots.find((t) => t.id === a.session.timeSlotId);
+          const bSlot = timeSlots.find((t) => t.id === b.session.timeSlotId);
+          const aDayVal = aSlot ? DAY_ORDER[aSlot.dayOfWeek] || 0 : 0;
+          const bDayVal = bSlot ? DAY_ORDER[bSlot.dayOfWeek] || 0 : 0;
+          cmp = aDayVal - bDayVal || (aSlot?.slotIndex || 0) - (bSlot?.slotIndex || 0);
           break;
         }
         case "room":
@@ -87,7 +95,7 @@ export function TableView({
       return sortDirection === "asc" ? cmp : -cmp;
     });
     return list;
-  }, [sessions, sortField, sortDirection]);
+  }, [sessions, sortField, sortDirection, timeSlots]);
 
   // Pagination
   const totalPages = Math.ceil(sortedSessions.length / pageSize) || 1;
@@ -97,12 +105,12 @@ export function TableView({
   }, [sortedSessions, currentPage, pageSize]);
 
   return (
-    <div className="bg-white rounded-lg border border-[rgb(var(--color-border-default))] shadow-xs overflow-hidden">
+    <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
       <div className="overflow-x-auto scrollbar-thin">
         <table className="w-full text-left text-xs border-collapse">
           {/* ── Table Head ────────────────────────────────────────────────── */}
           <thead>
-            <tr className="bg-slate-50 border-b border-[rgb(var(--color-border-default))] text-slate-600 font-semibold select-none">
+            <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-600 font-semibold select-none">
               <th
                 onClick={() => toggleSort("subject")}
                 className="p-3.5 cursor-pointer hover:text-slate-900 transition-colors"
@@ -173,7 +181,7 @@ export function TableView({
           <tbody className="divide-y divide-slate-100">
             {paginatedSessions.length === 0 ? (
               <tr>
-                <td colSpan={8} className="p-8 text-center text-slate-400">
+                <td colSpan={8} className="p-10 text-center text-slate-400">
                   No academic sessions match the current active filters.
                 </td>
               </tr>
@@ -181,6 +189,7 @@ export function TableView({
               paginatedSessions.map((enr) => {
                 const { session, subject, classroom, faculty, section, conflict, isStaged } = enr;
                 const isConflicted = Boolean(conflict && conflict.status === "active");
+                const slot = timeSlots.find((t) => t.id === session.timeSlotId);
 
                 return (
                   <tr
@@ -196,17 +205,20 @@ export function TableView({
                   >
                     {/* Subject */}
                     <td className="p-3.5 align-middle">
-                      <div className="font-mono font-bold text-slate-800 text-xs">
+                      <div className="font-mono font-bold text-slate-900 text-xs">
                         {subject?.code || "N/A"}
                       </div>
-                      <div className="text-[11px] text-slate-500 truncate max-w-[200px]" title={subject?.title}>
+                      <div
+                        className="text-[11px] text-slate-500 truncate max-w-[220px]"
+                        title={subject?.title}
+                      >
                         {subject?.title || "Session"}
                       </div>
                     </td>
 
                     {/* Section */}
                     <td className="p-3.5 align-middle whitespace-nowrap">
-                      <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-xs">
+                      <span className="font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded text-xs">
                         {section?.sectionCode || "SEC"}
                       </span>
                       <div className="text-[10px] text-slate-400 mt-0.5">
@@ -216,17 +228,17 @@ export function TableView({
 
                     {/* Day & Time Slot */}
                     <td className="p-3.5 align-middle whitespace-nowrap">
-                      <div className="font-medium text-slate-700 text-xs">
-                        {session.timeSlotId.replace("SLOT-", "")}
+                      <div className="font-semibold text-slate-800 text-xs">
+                        {slot?.dayOfWeek || "Scheduled Day"}
                       </div>
-                      <div className="text-[10px] text-slate-400 font-mono">
-                        {session.timeSlotId}
+                      <div className="text-[11px] text-slate-500">
+                        {slot?.label.split("–")[0]?.trim()} – {slot?.label.split("–")[1]?.trim()}
                       </div>
                     </td>
 
                     {/* Room */}
                     <td className="p-3.5 align-middle whitespace-nowrap">
-                      <div className="font-mono font-medium text-slate-800">
+                      <div className="font-mono font-bold text-slate-800">
                         {classroom?.code || "TBD"}
                       </div>
                       <div className="text-[10px] text-slate-400">
@@ -264,8 +276,12 @@ export function TableView({
                     {/* Validation Status */}
                     <td className="p-3.5 align-middle whitespace-nowrap">
                       {isStaged ? (
-                        <Badge variant="warning" size="sm" className="font-medium bg-amber-50 text-amber-800 border-amber-300">
-                          ● Staged Move (Unsaved)
+                        <Badge
+                          variant="warning"
+                          size="sm"
+                          className="font-medium bg-amber-50 text-amber-800 border-amber-300"
+                        >
+                          ● Staged (Unsaved)
                         </Badge>
                       ) : isConflicted ? (
                         <div className="flex items-center gap-1.5 text-rose-700 font-semibold text-[11px]">
@@ -290,9 +306,9 @@ export function TableView({
                           variant="ghost"
                           size="sm"
                           onClick={() => onSelectSession(enr)}
-                          className="h-7 text-xs px-2 text-slate-600 hover:text-[rgb(var(--color-primary))]"
+                          className="h-7 text-xs px-2.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-full"
                         >
-                          <Eye className="h-3 w-3 mr-1" />
+                          <Eye className="h-3 w-3 mr-1 text-slate-400" />
                           <span>Inspect</span>
                         </Button>
 
@@ -300,9 +316,9 @@ export function TableView({
                           variant="outline"
                           size="sm"
                           onClick={() => onMoveSession(enr)}
-                          className="h-7 text-xs px-2 border-slate-200 hover:border-blue-300 text-slate-700"
+                          className="h-7 text-xs px-2.5 border-slate-200 hover:border-slate-300 text-slate-700 rounded-full"
                         >
-                          <Move className="h-3 w-3 mr-1" />
+                          <Move className="h-3 w-3 mr-1 text-slate-400" />
                           <span>Move</span>
                         </Button>
                       </div>
@@ -317,7 +333,7 @@ export function TableView({
 
       {/* ── Pagination Controls ────────────────────────────────────────── */}
       {totalPages > 1 && (
-        <div className="p-3 border-t border-[rgb(var(--color-border-default))] flex items-center justify-between text-xs text-slate-500 bg-slate-50/50">
+        <div className="p-3.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 bg-slate-50/50">
           <div>
             Showing {(currentPage - 1) * pageSize + 1} to{" "}
             {Math.min(currentPage * pageSize, sortedSessions.length)} of{" "}
@@ -329,7 +345,7 @@ export function TableView({
               size="sm"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1}
-              className="h-7 text-xs px-2 border-slate-200"
+              className="h-7 text-xs px-2.5 border-slate-200 rounded-full disabled:opacity-40"
             >
               Previous
             </Button>
@@ -341,7 +357,7 @@ export function TableView({
               size="sm"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
-              className="h-7 text-xs px-2 border-slate-200"
+              className="h-7 text-xs px-2.5 border-slate-200 rounded-full disabled:opacity-40"
             >
               Next
             </Button>
