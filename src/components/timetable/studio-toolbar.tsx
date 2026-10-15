@@ -355,10 +355,10 @@ export function StudioToolbar({
       {/* ── Active Filters Chips Bar ──────────────────────────────────── */}
       {activeFilterCount > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100">
-          <span className="text-[11px] font-medium text-slate-400 mr-1">Active filters:</span>
+          <span className="text-xs font-medium text-slate-400 mr-1">Active filters:</span>
 
           {filters.departmentId !== "all" && selectedDepartment && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-800 border border-blue-200/60">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-800 border border-blue-200/60">
               Dept: {selectedDepartment.code}
               <button
                 type="button"
@@ -371,7 +371,7 @@ export function StudioToolbar({
           )}
 
           {filters.sectionId !== "all" && selectedSection && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-indigo-50 text-indigo-800 border border-indigo-200/60">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-800 border border-indigo-200/60">
               Cohort: {selectedSection.sectionCode}
               <button
                 type="button"
@@ -384,7 +384,7 @@ export function StudioToolbar({
           )}
 
           {filters.classroomId !== "all" && selectedClassroom && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200/60">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-800 border border-emerald-200/60">
               Room: {selectedClassroom.code}
               <button
                 type="button"
@@ -397,7 +397,7 @@ export function StudioToolbar({
           )}
 
           {filters.facultyId !== "all" && selectedFaculty && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 text-purple-800 border border-purple-200/60">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-800 border border-purple-200/60">
               Faculty: {selectedFaculty.name}
               <button
                 type="button"
@@ -410,7 +410,7 @@ export function StudioToolbar({
           )}
 
           {filters.conflictStatus !== "all" && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-rose-50 text-rose-800 border border-rose-200/60">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-50 text-rose-800 border border-rose-200/60">
               {filters.conflictStatus === "conflicted" ? "⚠️ Conflicted Only" : "✓ Clean Only"}
               <button
                 type="button"
@@ -423,7 +423,7 @@ export function StudioToolbar({
           )}
 
           {filters.searchQuery && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-800 border border-slate-200">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800 border border-slate-200">
               &ldquo;{filters.searchQuery}&rdquo;
               <button
                 type="button"
@@ -438,7 +438,7 @@ export function StudioToolbar({
           <button
             type="button"
             onClick={resetFilters}
-            className="text-[11px] text-slate-500 hover:text-slate-800 underline ml-1 cursor-pointer"
+            className="text-xs text-slate-500 hover:text-slate-800 underline ml-1 cursor-pointer"
           >
             Clear all
           </button>
@@ -446,14 +446,14 @@ export function StudioToolbar({
       )}
 
       {/* ── Summary & Helper Text ────────────────────────────────────── */}
-      <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
+      <div className="flex items-center justify-between text-xs text-slate-500 pt-0.5">
         <div className="flex items-center gap-2">
           <span>
             Showing <strong className="text-slate-800 font-semibold">{totalFilteredCount}</strong>{" "}
             scheduled sessions
           </span>
         </div>
-        <div className="text-[11px] text-slate-400 hidden md:block">
+        <div className="text-xs text-slate-400 hidden md:block">
           Click any session card to inspect details, validate constraints, and reschedule.
         </div>
       </div>

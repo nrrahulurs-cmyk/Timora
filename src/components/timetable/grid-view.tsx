@@ -102,6 +102,7 @@ export function GridView({
       </div>
 
       {/* ── Responsive Weekly Timetable Grid ───────────────────────────── */}
+      <h2 className="sr-only">Weekly Timetable Schedule</h2>
       <div className="overflow-x-auto scrollbar-thin p-3 lg:p-5">
         <table className="w-full min-w-[960px] border-collapse table-fixed">
           {/* ── Table Header: Dynamic Days & Dates ──────────────────────── */}

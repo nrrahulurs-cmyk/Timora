@@ -160,21 +160,28 @@ export function ClassCard({
           : "hover:shadow-md hover:-translate-y-0.5"
       } ${cardStyles.cardBg} ${cardStyles.border}`}
     >
-      {/* ── Top Section: Subject Code, Name, Dot ───────────────────────── */}
+      {/* ── Top Section: Subject Code, Type Badge, Dot ───────────────────────── */}
       <div>
         <div className="flex items-start justify-between gap-1.5">
           <div className="min-w-0 flex-1">
-            {subject?.code && (
-              <span className={`text-[11px] font-mono font-bold tracking-tight block ${cardStyles.codeText}`}>
-                {subject.code}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {subject?.code && (
+                <span className={`text-xs font-mono font-bold tracking-tight ${cardStyles.codeText}`}>
+                  {subject.code}
+                </span>
+              )}
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold border shrink-0 ${cardStyles.typeBadge}`}
+              >
+                {subject?.type === "Laboratory" ? "Practical" : subject?.type || "Lecture"}
               </span>
-            )}
-            <h4
-              className={`text-xs font-semibold leading-snug block line-clamp-2 mt-0.5 text-slate-900`}
+            </div>
+            <h3
+              className="text-xs font-semibold leading-snug block line-clamp-2 mt-0.5 text-slate-900"
               title={subject?.title}
             >
               {subject?.title || subject?.code || "Academic Session"}
-            </h4>
+            </h3>
           </div>
           <span className={`w-2 h-2 rounded-full shrink-0 mt-1 ${cardStyles.dot}`} />
         </div>
@@ -183,10 +190,10 @@ export function ClassCard({
         <div className="flex items-center gap-1.5 mt-2 text-xs flex-wrap">
           <span className="font-semibold text-slate-800 flex items-center gap-1 whitespace-nowrap">
             <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-            <span className="font-mono text-[11px]">{classroom?.code || "TBD"}</span>
+            <span className="font-mono text-xs">{classroom?.code || "TBD"}</span>
           </span>
           {section && (
-            <span className="text-[11px] text-slate-500 font-medium inline-flex items-center gap-1 whitespace-nowrap">
+            <span className="text-xs text-slate-500 font-medium inline-flex items-center gap-1 whitespace-nowrap">
               <span>•</span>
               <span className="bg-slate-100/90 text-slate-700 px-1.5 py-0.5 rounded font-mono text-[10px] font-semibold">
                 {section.sectionCode}
@@ -196,18 +203,14 @@ export function ClassCard({
         </div>
       </div>
 
-      {/* ── Bottom Section: Faculty & Type Badge ───────────────────────── */}
+      {/* ── Bottom Section: Faculty ───────────────────────── */}
       <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between gap-1.5">
         <span
-          className="truncate text-[11px] font-medium text-slate-600 flex-1"
+          className="text-xs font-medium text-slate-700 flex items-center gap-1.5 min-w-0 flex-1"
           title={faculty?.name}
         >
-          {faculty?.name || "Unassigned"}
-        </span>
-        <span
-          className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border shrink-0 ${cardStyles.typeBadge}`}
-        >
-          {subject?.type === "Laboratory" ? "Practical" : subject?.type || "Lecture"}
+          <User className="w-3 h-3 text-slate-400 shrink-0" />
+          <span className="truncate">{faculty?.name || "Unassigned"}</span>
         </span>
       </div>
 
