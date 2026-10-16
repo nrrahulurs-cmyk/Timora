@@ -26,10 +26,11 @@ import type {
   TeacherExchangeRequest,
   User,
   AcademicTerm,
+  FacultyAvailabilityPattern,
 } from "@/types/domain";
 
 import { SYNAPSE_SEED_DATA } from "@/data/fixtures";
-import { validateSession } from "@/lib/scheduling/constraint-engine";
+import { validateSession, type HardViolation } from "@/lib/scheduling/constraint-engine";
 
 // ── Legacy/Dashboard Types Preserved for Dashboard UI ────────────────────────
 
@@ -574,6 +575,45 @@ export interface SchedulingRepository {
     };
   }>;
 
+  // Room Management & Impact
+  createClassroom(data: Omit<Classroom, "id"> & { id?: string }): Promise<Classroom>;
+  updateClassroom(id: string, updates: Partial<Classroom>): Promise<Classroom>;
+  checkRoomImpact(
+    classroomId: string,
+    newStatus?: Classroom["status"],
+    newCapacity?: number
+  ): Promise<{
+    affectedSessions: TimetableSession[];
+    willCauseClash: boolean;
+    message: string;
+    details: string[];
+  }>;
+
+  // Faculty Management & Availability
+  createFacultyMember(
+    data: Omit<FacultyMember, "id" | "userId" | "currentAssignedHours"> & {
+      id?: string;
+      userId?: string;
+      currentAssignedHours?: number;
+    }
+  ): Promise<FacultyMember>;
+  updateFacultyMember(id: string, updates: Partial<FacultyMember>): Promise<FacultyMember>;
+  updateFacultyAvailability(
+    facultyId: string,
+    availability: FacultyAvailabilityPattern[]
+  ): Promise<{
+    success: boolean;
+    affectedSessions: TimetableSession[];
+    introducedViolations: HardViolation[];
+  }>;
+  checkFacultyAvailabilityImpact(
+    facultyId: string,
+    newAvailability: FacultyAvailabilityPattern[]
+  ): Promise<{
+    affectedSessions: TimetableSession[];
+    introducedViolations: HardViolation[];
+  }>;
+
   // Dashboard Aggregates (Preserved for Dashboard Integration)
   getKpiMetrics(): Promise<KpiMetrics>;
   getChartData(
@@ -666,6 +706,352 @@ export class LocalDemoSchedulingRepository implements SchedulingRepository {
 
   async getClassroomById(id: string): Promise<Classroom | undefined> {
     return this.dataset.classrooms.find((c) => c.id === id || c.code === id);
+  }
+
+  async createClassroom(data: Omit<Classroom, "id"> & { id?: string }): Promise<Classroom> {
+    const code = data.code?.trim();
+    const name = data.name?.trim();
+    const building = data.building?.trim();
+    const capacity = Number(data.capacity);
+
+    if (!code) throw new Error("Room code is required.");
+    if (!name) throw new Error("Room name is required.");
+    if (!building) throw new Error("Building location is required.");
+    if (!capacity || capacity <= 0) throw new Error("Room capacity must be greater than 0.");
+    if (!data.type) throw new Error("Room type is required.");
+
+    // Uniqueness check
+    if (this.dataset.classrooms.some((c) => c.code.toLowerCase() === code.toLowerCase())) {
+      throw new Error(`A facility with code '${code}' already exists.`);
+    }
+
+    const id = data.id || `ROOM-${code.toUpperCase().replace(/[^A-Z0-9]/g, "-")}`;
+    const newRoom: Classroom = {
+      id,
+      code,
+      name,
+      building,
+      floor: data.floor !== undefined ? Number(data.floor) : 1,
+      capacity,
+      type: data.type,
+      equipment: Array.isArray(data.equipment) ? [...data.equipment] : [],
+      isAccessible: Boolean(data.isAccessible),
+      status: data.status || "Available",
+    };
+
+    this.dataset.classrooms.push(newRoom);
+
+    const legacyType =
+      newRoom.type === "Specialized Laboratory"
+        ? "Lab"
+        : newRoom.type === "Seminar Room"
+        ? "Seminar"
+        : newRoom.type === "Lecture Hall"
+        ? "Lecture Hall"
+        : "Classroom";
+
+    this.roomRecords.push({
+      id: newRoom.id,
+      code: newRoom.code,
+      name: newRoom.name,
+      building: newRoom.building,
+      capacity: newRoom.capacity,
+      type: legacyType,
+      status: newRoom.status,
+      nextAvailableSlot: "Available immediately",
+    });
+
+    this.activityLog.unshift({
+      id: `ACT-${Date.now()}`,
+      actor: "Academic Administrator",
+      actorRole: "academic_admin",
+      action: `Created facility ${newRoom.code}`,
+      target: newRoom.name,
+      timestamp: "Just now",
+      category: "modification",
+    });
+
+    return { ...newRoom };
+  }
+
+  async updateClassroom(id: string, updates: Partial<Classroom>): Promise<Classroom> {
+    const room = this.dataset.classrooms.find((c) => c.id === id || c.code === id);
+    if (!room) {
+      throw new Error(`Facility ${id} not found.`);
+    }
+
+    if (updates.code && updates.code.trim().toLowerCase() !== room.code.toLowerCase()) {
+      const code = updates.code.trim();
+      if (this.dataset.classrooms.some((c) => c.id !== room.id && c.code.toLowerCase() === code.toLowerCase())) {
+        throw new Error(`A facility with code '${code}' already exists.`);
+      }
+      room.code = code;
+    }
+
+    if (updates.name !== undefined) {
+      if (!updates.name.trim()) throw new Error("Room name cannot be empty.");
+      room.name = updates.name.trim();
+    }
+
+    if (updates.building !== undefined) {
+      if (!updates.building.trim()) throw new Error("Building cannot be empty.");
+      room.building = updates.building.trim();
+    }
+
+    if (updates.floor !== undefined) {
+      room.floor = Number(updates.floor);
+    }
+
+    if (updates.capacity !== undefined) {
+      const cap = Number(updates.capacity);
+      if (cap <= 0) throw new Error("Room capacity must be greater than 0.");
+      room.capacity = cap;
+    }
+
+    if (updates.type !== undefined) {
+      room.type = updates.type;
+    }
+
+    if (updates.equipment !== undefined) {
+      room.equipment = Array.isArray(updates.equipment) ? [...updates.equipment] : [];
+    }
+
+    if (updates.isAccessible !== undefined) {
+      room.isAccessible = Boolean(updates.isAccessible);
+    }
+
+    if (updates.status !== undefined) {
+      room.status = updates.status;
+    }
+
+    const legacyRecord = this.roomRecords.find((r) => r.id === room.id || r.code === room.code);
+    if (legacyRecord) {
+      legacyRecord.name = room.name;
+      legacyRecord.building = room.building;
+      legacyRecord.capacity = room.capacity;
+      legacyRecord.status = room.status;
+    }
+
+    this.activityLog.unshift({
+      id: `ACT-${Date.now()}`,
+      actor: "Academic Administrator",
+      actorRole: "academic_admin",
+      action: `Updated facility ${room.code}`,
+      target: room.name,
+      timestamp: "Just now",
+      category: "modification",
+    });
+
+    return { ...room };
+  }
+
+  async checkRoomImpact(
+    classroomId: string,
+    newStatus?: Classroom["status"],
+    newCapacity?: number
+  ): Promise<{
+    affectedSessions: TimetableSession[];
+    willCauseClash: boolean;
+    message: string;
+    details: string[];
+  }> {
+    const room = this.dataset.classrooms.find((c) => c.id === classroomId || c.code === classroomId);
+    if (!room) throw new Error(`Facility ${classroomId} not found.`);
+
+    const activeSessions = this.dataset.timetableSessions.filter(
+      (s) => (s.classroomId === room.id || s.classroomId === room.code) && s.status !== "cancelled"
+    );
+
+    const details: string[] = [];
+    let willCauseClash = false;
+
+    for (const session of activeSessions) {
+      const subject = this.dataset.subjects.find((sub) => sub.id === session.subjectId);
+      const section = this.dataset.sections.find((sec) => sec.id === session.sectionId);
+      const slot = this.dataset.timeSlots.find((t) => t.id === session.timeSlotId);
+
+      const sessLabel = `${subject?.code || "Subject"} (${section?.sectionCode || "Section"}) on ${slot?.label || "Slot"}`;
+
+      if (newStatus === "Maintenance") {
+        willCauseClash = true;
+        details.push(`Active session collision: ${sessLabel}`);
+      }
+
+      if (newCapacity !== undefined && section && section.studentCount > newCapacity) {
+        willCauseClash = true;
+        const deficit = section.studentCount - newCapacity;
+        details.push(`Capacity deficit: ${sessLabel} requires ${section.studentCount} seats (Deficit: -${deficit})`);
+      }
+    }
+
+    let message = "No scheduling conflicts detected. Safe to modify.";
+    if (willCauseClash) {
+      message = `Notice: Changing status or capacity directly impacts ${activeSessions.length} active scheduled classes. Review consequence details below.`;
+    }
+
+    return {
+      affectedSessions: activeSessions,
+      willCauseClash,
+      message,
+      details,
+    };
+  }
+
+  async createFacultyMember(
+    data: Omit<FacultyMember, "id" | "userId" | "currentAssignedHours"> & {
+      id?: string;
+      userId?: string;
+      currentAssignedHours?: number;
+    }
+  ): Promise<FacultyMember> {
+    const code = data.employeeCode?.trim();
+    const name = data.name?.trim();
+    const email = data.email?.trim();
+    const deptId = data.departmentId?.trim();
+    const maxCredits = Number(data.maxCreditHours);
+
+    if (!code) throw new Error("Employee code is required.");
+    if (!name) throw new Error("Faculty name is required.");
+    if (!email) throw new Error("Faculty email is required.");
+    if (!deptId) throw new Error("Department ID is required.");
+    if (!maxCredits || maxCredits <= 0) throw new Error("Max credit hours must be greater than 0.");
+    if (!data.designation) throw new Error("Designation is required.");
+
+    if (this.dataset.faculty.some((f) => f.employeeCode.toLowerCase() === code.toLowerCase())) {
+      throw new Error(`Faculty member with employee code '${code}' already exists.`);
+    }
+
+    const id = data.id || `FAC-${code.toUpperCase().replace(/[^A-Z0-9]/g, "-")}`;
+    const newFaculty: FacultyMember = {
+      id,
+      userId: data.userId || `USER-${id}`,
+      employeeCode: code,
+      name,
+      email,
+      departmentId: deptId,
+      designation: data.designation,
+      maxCreditHours: maxCredits,
+      currentAssignedHours: data.currentAssignedHours || 0,
+      specializations: Array.isArray(data.specializations) ? [...data.specializations] : [],
+      availability: Array.isArray(data.availability) ? [...data.availability] : [],
+      status: data.status || "active",
+    };
+
+    this.dataset.faculty.push(newFaculty);
+
+    this.activityLog.unshift({
+      id: `ACT-${Date.now()}`,
+      actor: "Academic Administrator",
+      actorRole: "academic_admin",
+      action: `Added faculty instructor ${newFaculty.name}`,
+      target: newFaculty.employeeCode,
+      timestamp: "Just now",
+      category: "modification",
+    });
+
+    return { ...newFaculty };
+  }
+
+  async updateFacultyMember(id: string, updates: Partial<FacultyMember>): Promise<FacultyMember> {
+    const fac = this.dataset.faculty.find((f) => f.id === id || f.employeeCode === id);
+    if (!fac) throw new Error(`Faculty member ${id} not found.`);
+
+    if (updates.name !== undefined) fac.name = updates.name.trim();
+    if (updates.email !== undefined) fac.email = updates.email.trim();
+    if (updates.departmentId !== undefined) fac.departmentId = updates.departmentId;
+    if (updates.designation !== undefined) fac.designation = updates.designation;
+    if (updates.maxCreditHours !== undefined) {
+      const hrs = Number(updates.maxCreditHours);
+      if (hrs <= 0) throw new Error("Max credit hours must be greater than 0.");
+      fac.maxCreditHours = hrs;
+    }
+    if (updates.specializations !== undefined) fac.specializations = [...updates.specializations];
+    if (updates.status !== undefined) fac.status = updates.status;
+
+    this.activityLog.unshift({
+      id: `ACT-${Date.now()}`,
+      actor: "Academic Administrator",
+      actorRole: "academic_admin",
+      action: `Updated faculty details for ${fac.name}`,
+      target: fac.employeeCode,
+      timestamp: "Just now",
+      category: "modification",
+    });
+
+    return { ...fac };
+  }
+
+  async checkFacultyAvailabilityImpact(
+    facultyId: string,
+    newAvailability: FacultyAvailabilityPattern[]
+  ): Promise<{
+    affectedSessions: TimetableSession[];
+    introducedViolations: HardViolation[];
+  }> {
+    const faculty = this.dataset.faculty.find((f) => f.id === facultyId || f.employeeCode === facultyId);
+    if (!faculty) throw new Error(`Faculty member ${facultyId} not found.`);
+
+    const activeSessions = this.dataset.timetableSessions.filter(
+      (s) => s.facultyId === faculty.id && s.status !== "cancelled"
+    );
+
+    const affectedSessions: TimetableSession[] = [];
+    const introducedViolations: HardViolation[] = [];
+
+    for (const session of activeSessions) {
+      const slot = this.dataset.timeSlots.find((t) => t.id === session.timeSlotId);
+      if (!slot) continue;
+
+      const dayPattern = newAvailability.find((p) => p.dayOfWeek === slot.dayOfWeek);
+
+      // If slot is explicitly blocked or day pattern excludes this slot
+      if (!dayPattern || dayPattern.blockedSlotIds.includes(slot.id)) {
+        affectedSessions.push(session);
+        const subject = this.dataset.subjects.find((s) => s.id === session.subjectId);
+        introducedViolations.push({
+          rule: "faculty_hard_availability",
+          constraintType: "faculty_overlap",
+          title: `Faculty Blocked Duty Collision for ${faculty.name}`,
+          description: `${faculty.name} has blocked ${slot.label}. Active class ${subject?.code || "Session"} is currently scheduled in this interval.`,
+          conflictingEntityId: faculty.id,
+          conflictingSessionId: session.id,
+        });
+      }
+    }
+
+    return { affectedSessions, introducedViolations };
+  }
+
+  async updateFacultyAvailability(
+    facultyId: string,
+    availability: FacultyAvailabilityPattern[]
+  ): Promise<{
+    success: boolean;
+    affectedSessions: TimetableSession[];
+    introducedViolations: HardViolation[];
+  }> {
+    const faculty = this.dataset.faculty.find((f) => f.id === facultyId || f.employeeCode === facultyId);
+    if (!faculty) throw new Error(`Faculty member ${facultyId} not found.`);
+
+    const impact = await this.checkFacultyAvailabilityImpact(facultyId, availability);
+
+    faculty.availability = JSON.parse(JSON.stringify(availability));
+
+    this.activityLog.unshift({
+      id: `ACT-${Date.now()}`,
+      actor: faculty.name,
+      actorRole: "faculty_instructor",
+      action: `Updated weekly availability preferences`,
+      target: faculty.name,
+      timestamp: "Just now",
+      category: "modification",
+    });
+
+    return {
+      success: true,
+      affectedSessions: impact.affectedSessions,
+      introducedViolations: impact.introducedViolations,
+    };
   }
 
   async getTimeSlots(dayOfWeek?: DayOfWeek): Promise<TimeSlot[]> {

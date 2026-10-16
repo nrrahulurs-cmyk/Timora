@@ -42,6 +42,7 @@ import type {
   TeacherExchangeRequest,
   User,
   UserRole,
+  FacultyAvailabilityPattern,
 } from "@/types/domain";
 
 import {
@@ -73,7 +74,7 @@ import {
   DatabaseError,
 } from "../errors";
 
-import { validateSession } from "../scheduling/constraint-engine";
+import { validateSession, type HardViolation } from "../scheduling/constraint-engine";
 
 export class SupabaseSchedulingRepository implements SchedulingRepository {
   private client: SupabaseClient;
@@ -279,6 +280,353 @@ export class SupabaseSchedulingRepository implements SchedulingRepository {
       .maybeSingle();
     if (error) throw new DatabaseError(`Failed to fetch classroom ${id}`, error);
     return data ? mapClassroom(data) : undefined;
+  }
+
+  async createClassroom(data: Omit<Classroom, "id"> & { id?: string }): Promise<Classroom> {
+    this.assertAuthorized(["academic_admin", "timetable_coordinator"], "create facility");
+    const code = data.code?.trim();
+    const name = data.name?.trim();
+    const building = data.building?.trim();
+    const capacity = Number(data.capacity);
+
+    if (!code) throw new SchedulingError("VALIDATION_FAILED", "Room code is required.");
+    if (!name) throw new SchedulingError("VALIDATION_FAILED", "Room name is required.");
+    if (!building) throw new SchedulingError("VALIDATION_FAILED", "Building location is required.");
+    if (!capacity || capacity <= 0) throw new SchedulingError("VALIDATION_FAILED", "Room capacity must be greater than 0.");
+    if (!data.type) throw new SchedulingError("VALIDATION_FAILED", "Room type is required.");
+
+    const id = data.id || `ROOM-${code.toUpperCase().replace(/[^A-Z0-9]/g, "-")}`;
+    const row = {
+      id,
+      code,
+      name,
+      building,
+      floor: data.floor !== undefined ? Number(data.floor) : 1,
+      capacity,
+      type: data.type,
+      equipment: Array.isArray(data.equipment) ? data.equipment : [],
+      is_accessible: Boolean(data.isAccessible),
+      status: data.status || "Available",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data: created, error } = await this.client.from("classrooms").insert(row).select("*").single();
+    if (error) throw new DatabaseError(`Failed to create classroom ${code}`, error);
+
+    await this.client.from("change_history_records").insert({
+      id: `HIST-${Date.now()}`,
+      version_id: "VER-2026-FALL-v1.0",
+      entity_type: "classroom",
+      entity_id: id,
+      action: "created",
+      modified_by: this.currentUserId,
+      actor_name: this.currentUserName,
+      actor_role: this.currentRole,
+      timestamp: new Date().toISOString(),
+      summary: `Created facility ${code} (${name}) with capacity ${capacity} seats in ${building}.`,
+    }).select().maybeSingle();
+
+    return mapClassroom(created);
+  }
+
+  async updateClassroom(id: string, updates: Partial<Classroom>): Promise<Classroom> {
+    this.assertAuthorized(["academic_admin", "timetable_coordinator"], "update facility");
+    const existing = await this.getClassroomById(id);
+    if (!existing) throw new NotFoundError("Classroom", id);
+
+    const updatePayload: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (updates.code !== undefined) {
+      if (!updates.code.trim()) throw new SchedulingError("VALIDATION_FAILED", "Room code cannot be empty.");
+      updatePayload.code = updates.code.trim();
+    }
+    if (updates.name !== undefined) {
+      if (!updates.name.trim()) throw new SchedulingError("VALIDATION_FAILED", "Room name cannot be empty.");
+      updatePayload.name = updates.name.trim();
+    }
+    if (updates.building !== undefined) {
+      if (!updates.building.trim()) throw new SchedulingError("VALIDATION_FAILED", "Building cannot be empty.");
+      updatePayload.building = updates.building.trim();
+    }
+    if (updates.floor !== undefined) {
+      updatePayload.floor = Number(updates.floor);
+    }
+    if (updates.capacity !== undefined) {
+      const cap = Number(updates.capacity);
+      if (cap <= 0) throw new SchedulingError("VALIDATION_FAILED", "Room capacity must be greater than 0.");
+      updatePayload.capacity = cap;
+    }
+    if (updates.type !== undefined) updatePayload.type = updates.type;
+    if (updates.equipment !== undefined) updatePayload.equipment = updates.equipment;
+    if (updates.isAccessible !== undefined) updatePayload.is_accessible = Boolean(updates.isAccessible);
+    if (updates.status !== undefined) updatePayload.status = updates.status;
+
+    const { data: updated, error } = await this.client
+      .from("classrooms")
+      .update(updatePayload)
+      .eq("id", existing.id)
+      .select("*")
+      .single();
+
+    if (error) throw new DatabaseError(`Failed to update classroom ${id}`, error);
+
+    await this.client.from("change_history_records").insert({
+      id: `HIST-${Date.now()}`,
+      version_id: "VER-2026-FALL-v1.0",
+      entity_type: "classroom",
+      entity_id: existing.id,
+      action: "modified",
+      modified_by: this.currentUserId,
+      actor_name: this.currentUserName,
+      actor_role: this.currentRole,
+      timestamp: new Date().toISOString(),
+      summary: `Updated facility specifications for ${existing.code}.`,
+    }).select().maybeSingle();
+
+    return mapClassroom(updated);
+  }
+
+  async checkRoomImpact(
+    classroomId: string,
+    newStatus?: Classroom["status"],
+    newCapacity?: number
+  ): Promise<{
+    affectedSessions: TimetableSession[];
+    willCauseClash: boolean;
+    message: string;
+    details: string[];
+  }> {
+    const room = await this.getClassroomById(classroomId);
+    if (!room) throw new NotFoundError("Classroom", classroomId);
+
+    const { data: sessionRows, error } = await this.client
+      .from("timetable_sessions")
+      .select("*")
+      .or(`classroom_id.eq.${room.id},classroom_id.eq.${room.code}`)
+      .neq("status", "cancelled");
+
+    if (error) throw new DatabaseError("Failed to fetch sessions for room impact check", error);
+
+    const activeSessions = (sessionRows || []).map(mapTimetableSession);
+    const details: string[] = [];
+    let willCauseClash = false;
+
+    const dataset = await this.getDataset();
+
+    for (const session of activeSessions) {
+      const subject = dataset.subjects.find((sub) => sub.id === session.subjectId);
+      const section = dataset.sections.find((sec) => sec.id === session.sectionId);
+      const slot = dataset.timeSlots.find((t) => t.id === session.timeSlotId);
+      const sessLabel = `${subject?.code || "Subject"} (${section?.sectionCode || "Section"}) on ${slot?.label || "Slot"}`;
+
+      if (newStatus === "Maintenance") {
+        willCauseClash = true;
+        details.push(`Active session collision: ${sessLabel}`);
+      }
+
+      if (newCapacity !== undefined && section && section.studentCount > newCapacity) {
+        willCauseClash = true;
+        const deficit = section.studentCount - newCapacity;
+        details.push(`Capacity deficit: ${sessLabel} requires ${section.studentCount} seats (Deficit: -${deficit})`);
+      }
+    }
+
+    let message = "No scheduling conflicts detected. Safe to modify.";
+    if (willCauseClash) {
+      message = `Notice: Changing status or capacity directly impacts ${activeSessions.length} active scheduled classes. Review consequence details below.`;
+    }
+
+    return {
+      affectedSessions: activeSessions,
+      willCauseClash,
+      message,
+      details,
+    };
+  }
+
+  async createFacultyMember(
+    data: Omit<FacultyMember, "id" | "userId" | "currentAssignedHours"> & {
+      id?: string;
+      userId?: string;
+      currentAssignedHours?: number;
+    }
+  ): Promise<FacultyMember> {
+    this.assertAuthorized(["academic_admin", "timetable_coordinator"], "create faculty member");
+    const code = data.employeeCode?.trim();
+    const name = data.name?.trim();
+    const email = data.email?.trim();
+    const deptId = data.departmentId?.trim();
+    const maxCredits = Number(data.maxCreditHours);
+
+    if (!code) throw new SchedulingError("VALIDATION_FAILED", "Employee code is required.");
+    if (!name) throw new SchedulingError("VALIDATION_FAILED", "Faculty name is required.");
+    if (!email) throw new SchedulingError("VALIDATION_FAILED", "Faculty email is required.");
+    if (!deptId) throw new SchedulingError("VALIDATION_FAILED", "Department ID is required.");
+    if (!maxCredits || maxCredits <= 0) throw new SchedulingError("VALIDATION_FAILED", "Max credit hours must be greater than 0.");
+    if (!data.designation) throw new SchedulingError("VALIDATION_FAILED", "Designation is required.");
+
+    const id = data.id || `FAC-${code.toUpperCase().replace(/[^A-Z0-9]/g, "-")}`;
+    const row = {
+      id,
+      user_id: data.userId || `USER-${id}`,
+      employee_code: code,
+      name,
+      email,
+      department_id: deptId,
+      designation: data.designation,
+      max_credit_hours: maxCredits,
+      current_assigned_hours: data.currentAssignedHours || 0,
+      specializations: Array.isArray(data.specializations) ? data.specializations : [],
+      availability: Array.isArray(data.availability) ? data.availability : [],
+      status: data.status || "active",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data: created, error } = await this.client.from("faculty_members").insert(row).select("*").single();
+    if (error) throw new DatabaseError(`Failed to create faculty member ${code}`, error);
+
+    await this.client.from("change_history_records").insert({
+      id: `HIST-${Date.now()}`,
+      version_id: "VER-2026-FALL-v1.0",
+      entity_type: "faculty",
+      entity_id: id,
+      action: "created",
+      modified_by: this.currentUserId,
+      actor_name: this.currentUserName,
+      actor_role: this.currentRole,
+      timestamp: new Date().toISOString(),
+      summary: `Appointed faculty instructor ${name} (${code}) to department ${deptId}.`,
+    }).select().maybeSingle();
+
+    return mapFacultyMember(created);
+  }
+
+  async updateFacultyMember(id: string, updates: Partial<FacultyMember>): Promise<FacultyMember> {
+    this.assertAuthorized(["academic_admin", "timetable_coordinator"], "update faculty member");
+    const existing = await this.getFacultyById(id);
+    if (!existing) throw new NotFoundError("FacultyMember", id);
+
+    const updatePayload: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (updates.name !== undefined) updatePayload.name = updates.name.trim();
+    if (updates.email !== undefined) updatePayload.email = updates.email.trim();
+    if (updates.departmentId !== undefined) updatePayload.department_id = updates.departmentId;
+    if (updates.designation !== undefined) updatePayload.designation = updates.designation;
+    if (updates.maxCreditHours !== undefined) {
+      const hrs = Number(updates.maxCreditHours);
+      if (hrs <= 0) throw new SchedulingError("VALIDATION_FAILED", "Max credit hours must be greater than 0.");
+      updatePayload.max_credit_hours = hrs;
+    }
+    if (updates.specializations !== undefined) updatePayload.specializations = updates.specializations;
+    if (updates.status !== undefined) updatePayload.status = updates.status;
+
+    const { data: updated, error } = await this.client
+      .from("faculty_members")
+      .update(updatePayload)
+      .eq("id", existing.id)
+      .select("*")
+      .single();
+
+    if (error) throw new DatabaseError(`Failed to update faculty member ${id}`, error);
+
+    return mapFacultyMember(updated);
+  }
+
+  async checkFacultyAvailabilityImpact(
+    facultyId: string,
+    newAvailability: FacultyAvailabilityPattern[]
+  ): Promise<{
+    affectedSessions: TimetableSession[];
+    introducedViolations: HardViolation[];
+  }> {
+    const faculty = await this.getFacultyById(facultyId);
+    if (!faculty) throw new NotFoundError("FacultyMember", facultyId);
+
+    const { data: sessRows, error } = await this.client
+      .from("timetable_sessions")
+      .select("*")
+      .eq("faculty_id", faculty.id)
+      .neq("status", "cancelled");
+
+    if (error) throw new DatabaseError("Failed to fetch sessions for availability check", error);
+
+    const activeSessions = (sessRows || []).map(mapTimetableSession);
+    const dataset = await this.getDataset();
+
+    const affectedSessions: TimetableSession[] = [];
+    const introducedViolations: HardViolation[] = [];
+
+    for (const session of activeSessions) {
+      const slot = dataset.timeSlots.find((t) => t.id === session.timeSlotId);
+      if (!slot) continue;
+
+      const dayPattern = newAvailability.find((p) => p.dayOfWeek === slot.dayOfWeek);
+
+      if (!dayPattern || dayPattern.blockedSlotIds.includes(slot.id)) {
+        affectedSessions.push(session);
+        const subject = dataset.subjects.find((s) => s.id === session.subjectId);
+        introducedViolations.push({
+          rule: "faculty_hard_availability",
+          constraintType: "faculty_overlap",
+          title: `Faculty Blocked Duty Collision for ${faculty.name}`,
+          description: `${faculty.name} has blocked ${slot.label}. Active class ${subject?.code || "Session"} is currently scheduled in this interval.`,
+          conflictingEntityId: faculty.id,
+          conflictingSessionId: session.id,
+        });
+      }
+    }
+
+    return { affectedSessions, introducedViolations };
+  }
+
+  async updateFacultyAvailability(
+    facultyId: string,
+    availability: FacultyAvailabilityPattern[]
+  ): Promise<{
+    success: boolean;
+    affectedSessions: TimetableSession[];
+    introducedViolations: HardViolation[];
+  }> {
+    this.assertAuthorized(["academic_admin", "timetable_coordinator", "faculty_instructor"], "update faculty availability");
+    const faculty = await this.getFacultyById(facultyId);
+    if (!faculty) throw new NotFoundError("FacultyMember", facultyId);
+
+    const impact = await this.checkFacultyAvailabilityImpact(facultyId, availability);
+
+    const { error } = await this.client
+      .from("faculty_members")
+      .update({
+        availability: availability,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", faculty.id);
+
+    if (error) throw new DatabaseError(`Failed to update faculty availability for ${facultyId}`, error);
+
+    await this.client.from("change_history_records").insert({
+      id: `HIST-${Date.now()}`,
+      version_id: "VER-2026-FALL-v1.0",
+      entity_type: "faculty",
+      entity_id: faculty.id,
+      action: "modified",
+      modified_by: this.currentUserId,
+      actor_name: this.currentUserName,
+      actor_role: this.currentRole,
+      timestamp: new Date().toISOString(),
+      summary: `Updated weekly availability preferences for ${faculty.name}.`,
+    }).select().maybeSingle();
+
+    return {
+      success: true,
+      affectedSessions: impact.affectedSessions,
+      introducedViolations: impact.introducedViolations,
+    };
   }
 
   async getTimeSlots(dayOfWeek?: DayOfWeek): Promise<TimeSlot[]> {
