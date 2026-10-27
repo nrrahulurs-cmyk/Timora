@@ -11,6 +11,7 @@ import {
   type AttentionItem,
   type ActivityItem,
 } from "@/lib/repository/scheduling-repository";
+import { calculateScheduleAnalytics } from "@/lib/analytics/metrics";
 
 const mockMetrics: KpiMetrics = {
   scheduledClasses: {
@@ -23,6 +24,8 @@ const mockMetrics: KpiMetrics = {
     count: 3,
     roomClashes: 2,
     facultyClashes: 1,
+    criticalCount: 1,
+    warningCount: 2,
     supportingText: "2 room overlaps • 1 faculty clash",
   },
   availableRooms: {
@@ -33,7 +36,6 @@ const mockMetrics: KpiMetrics = {
   },
   roomUtilisation: {
     rate: 86.2,
-    targetBaseline: 85.0,
     supportingText: "1.2% above target baseline (85.0%)",
   },
   pendingApprovals: {
@@ -72,13 +74,12 @@ const mockActivities: ActivityItem[] = [
 
 describe("PHASE 2 Dashboard Components", () => {
   describe("Scheduling Repository", () => {
-    it("provides stable demo KPI metrics without invented growth percentages", async () => {
+    it("derives dashboard KPIs from the active schedule dataset", async () => {
       const m = await schedulingRepository.getKpiMetrics();
-      expect(m.scheduledClasses.count).toBe(1284);
-      expect(m.unresolvedConflicts.count).toBe(5);
-      expect(m.availableRooms.available).toBe(11);
-      expect(m.roomUtilisation.rate).toBe(86.2);
-      expect(m.pendingApprovals.count).toBe(7);
+      const dataset = await schedulingRepository.getDataset();
+      const expected = calculateScheduleAnalytics(dataset).kpiMetrics;
+      expect(m).toEqual(expected);
+      expect(m.unresolvedConflicts.count).toBe(dataset.conflicts.filter((item) => item.status === "active").length);
     });
 
     it("fetches chart data points for weekly timeline", async () => {
@@ -101,13 +102,13 @@ describe("PHASE 2 Dashboard Components", () => {
     it("renders all 5 cards with values and concise labels", () => {
       render(<KpiRow metrics={mockMetrics} />);
 
-      expect(screen.getByText("Scheduled Classes")).toBeInTheDocument();
+      expect(screen.getByText("Scheduled Sessions")).toBeInTheDocument();
       expect(screen.getByText("1,284")).toBeInTheDocument();
 
       expect(screen.getByText("Active Conflicts")).toBeInTheDocument();
       expect(screen.getByText("3")).toBeInTheDocument();
 
-      expect(screen.getByText("Available Rooms")).toBeInTheDocument();
+      expect(screen.getByText("Rooms Marked Available")).toBeInTheDocument();
       expect(screen.getByText("42")).toBeInTheDocument();
 
       expect(screen.getByText("Room Utilisation")).toBeInTheDocument();

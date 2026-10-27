@@ -16,6 +16,7 @@ interface GridViewProps {
   onEmptySlotClick?: (day: DayOfWeek, slotIndex: number) => void;
   includeSaturday?: boolean;
   weekOffset?: number;
+  today?: Date;
 }
 
 const SLOT_DEFINITIONS = [
@@ -35,14 +36,16 @@ export function GridView({
   onEmptySlotClick,
   includeSaturday = true,
   weekOffset = 0,
+  today,
 }: GridViewProps) {
   // Mobile day filter: "all" or specific day
   const [mobileActiveDay, setMobileActiveDay] = React.useState<string>("all");
+  const effectiveToday = today ?? new Date(2026, 9, 19);
 
   // Get dynamic dates for the current week
   const weekDetails = React.useMemo(() => {
-    return getWeekScheduleDetails(weekOffset);
-  }, [weekOffset]);
+    return getWeekScheduleDetails(weekOffset, effectiveToday);
+  }, [weekOffset, effectiveToday]);
 
   const displayDays: WeekDayDetail[] = React.useMemo(() => {
     const days = includeSaturday ? weekDetails.days : weekDetails.days.slice(0, 5);
@@ -65,6 +68,26 @@ export function GridView({
     }
 
     return map;
+  }, [sessions, timeSlots]);
+
+  const footerMetrics = React.useMemo(() => {
+    const slotHours = (slotId: string) => {
+      const slot = timeSlots.find((item) => item.id === slotId);
+      if (!slot) return 0;
+      const [startHour, startMinute] = slot.startTime.split(":").map(Number);
+      const [endHour, endMinute] = slot.endTime.split(":").map(Number);
+      return Math.max(0, (endHour * 60 + endMinute - startHour * 60 - startMinute) / 60);
+    };
+    const totalHours = sessions.reduce((sum, item) => sum + slotHours(item.session.timeSlotId), 0);
+    const labHours = sessions
+      .filter((item) => item.subject?.type === "Laboratory")
+      .reduce((sum, item) => sum + slotHours(item.session.timeSlotId), 0);
+    const conflictCount = new Set(sessions.flatMap((item) => item.conflict ? [item.conflict.id] : [])).size;
+    return {
+      totalHours: Math.round(totalHours * 10) / 10,
+      labHours: Math.round(labHours * 10) / 10,
+      conflictCount,
+    };
   }, [sessions, timeSlots]);
 
   return (
@@ -106,9 +129,9 @@ export function GridView({
       <div className="overflow-x-auto scrollbar-thin p-3 lg:p-5">
         <table className="w-full min-w-[960px] border-collapse table-fixed">
           {/* ── Table Header: Dynamic Days & Dates ──────────────────────── */}
-          <thead>
-            <tr className="border-b border-slate-200/80 text-slate-700">
-              <th className="w-36 pb-3 pt-1 text-left pl-3 text-xs font-semibold text-slate-400 uppercase tracking-wider sticky left-0 bg-white z-10">
+          <thead className="sticky top-0 bg-white/95 backdrop-blur-sm z-20 shadow-xs">
+            <tr className="border-b border-slate-200/80 text-slate-700 bg-white">
+              <th className="w-36 pb-3 pt-2 text-left pl-3 text-xs font-semibold text-slate-400 uppercase tracking-wider sticky left-0 bg-white z-30">
                 Time
               </th>
               {displayDays.map((dayDetail) => {
@@ -219,30 +242,26 @@ export function GridView({
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
             <span>
-              Allocated: <strong className="text-slate-800">38 hrs / wk</strong>
+              Allocated: <strong className="text-slate-800">{footerMetrics.totalHours} hrs / wk</strong>
             </span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-amber-400" />
             <span>
-              Practical Labs: <strong className="text-slate-800">12 hrs</strong>
+              Practical Labs: <strong className="text-slate-800">{footerMetrics.labHours} hrs</strong>
             </span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-rose-500" />
             <span>
               Attention Required:{" "}
-              <strong className="text-rose-600 font-bold">4 Flagged</strong>
+              <strong className="text-rose-600 font-bold">{footerMetrics.conflictCount} Flagged</strong>
             </span>
           </div>
         </div>
 
         <div className="flex items-center gap-2 text-slate-400 text-[11px]">
-          <span>AI Constraint Engine: Active</span>
-          <span className="text-slate-200">•</span>
-          <span className="text-[rgb(var(--color-primary))] font-semibold">
-            Supabase Live Connected
-          </span>
+          <span>Summary for the displayed timetable</span>
         </div>
       </footer>
     </div>

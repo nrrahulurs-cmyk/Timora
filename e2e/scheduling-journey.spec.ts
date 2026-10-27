@@ -1,26 +1,33 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Timora Scheduling & Conflict Resolution Journey", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/login");
+    await expect(page.getByLabel("Email address")).toHaveValue("e.vance@timora.edu");
+    await page.getByLabel("Password", { exact: true }).fill("timora2026");
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page).toHaveURL(/\/$/);
+  });
+
   test("Complete Main Journey: Open conflict -> Understand reason -> Select alternative -> Preview diff -> Apply resolution", async ({
     page,
   }) => {
     // 1. Navigate to Conflicts page
     await page.goto("/conflicts");
 
-    // Verify Conflicts Header and KPI cards
-    await expect(page.locator("h1")).toContainText(/Conflict Resolution Center/i);
+    // Verify the focused conflict queue and summary
+    await expect(page.locator("h1")).toContainText(/Schedule conflicts/i);
     await expect(page.locator("text=Active Conflicts").first()).toBeVisible();
 
     // 2. Locate CONF-01 (Room Clash in LH-201)
-    const conf01Card = page.locator(".border", { hasText: "CONF-01" }).first();
-    await expect(conf01Card).toBeVisible();
+    await expect(page.getByText("CONF-01").first()).toBeVisible();
 
-    // Click "Resolve Conflict" specifically on CONF-01 card
-    await conf01Card.getByRole("button", { name: /Resolve Conflict/i }).click();
+    // Open the first feasible conflict card (CONF-01)
+    await page.getByRole("button", { name: /Resolve with Ripple/i }).first().click();
 
     // 3. Understand Reason in Drawer
     await expect(page.getByRole("heading", { name: /Classroom Double-Booking in LH-201/i })).toBeVisible();
-    await expect(page.locator("text=Why Current Allocation Is Invalid:")).toBeVisible();
+    await expect(page.getByText("Conflict Anatomy & Resource Constraints")).toBeVisible();
     await expect(page.locator("text=Room Constraint").first()).toBeVisible();
     await expect(page.locator("text=Affected Sessions").first()).toBeVisible();
 
@@ -30,7 +37,7 @@ test.describe("Timora Scheduling & Conflict Resolution Journey", () => {
     await option1.click();
 
     // 5. Preview Changes in Diff
-    const previewDiffButton = page.getByRole("button", { name: /Preview Diff/i });
+    const previewDiffButton = page.getByRole("button", { name: /Preview Ripple Impact/i });
     if (await previewDiffButton.isVisible()) {
       await previewDiffButton.click();
       await expect(page.locator("text=Deterministic Verification: Safe to Apply")).toBeVisible();
@@ -39,14 +46,14 @@ test.describe("Timora Scheduling & Conflict Resolution Journey", () => {
     }
 
     // 6. Apply Correction
-    const applyButton = page.getByRole("button", { name: /Apply Resolution/i });
+    const applyButton = page.getByRole("button", { name: /Confirm & Commit Resolution/i });
     await expect(applyButton).toBeVisible();
     await expect(applyButton).toBeEnabled();
     await applyButton.click();
 
     // Verify Success Toast and Undo capability
     await expect(page.locator("text=Conflict Resolved Successfully").first()).toBeVisible({ timeout: 10000 });
-    const undoButton = page.getByRole("button", { name: /Undo Last Change/i });
+    const undoButton = page.getByRole("button", { name: /Undo Conflict Resolution/i });
     await expect(undoButton).toBeVisible();
 
     // Self-restore: click undo to restore pristine schedule state
@@ -68,18 +75,11 @@ test.describe("Timora Scheduling & Conflict Resolution Journey", () => {
   }) => {
     await page.goto("/conflicts");
 
-    // Filter to "No Feasible Alternative"
-    const noAltFilter = page.getByRole("button", { name: /No Feasible Alternative/i });
-    await expect(noAltFilter).toBeVisible();
-    await noAltFilter.click();
-
-    // Locate CONF-05
+    // Open the unresolvable clash's diagnostics
     await expect(page.locator("text=CONF-05").first()).toBeVisible();
-    await expect(page.locator("text=NO ALTERNATIVE ON CAMPUS").first()).toBeVisible();
-
-    // Open Diagnostics
-    const inspectBtn = page.getByRole("button", { name: /Inspect Diagnostics/i }).first();
+    const inspectBtn = page.getByRole("button", { name: /Inspect Clash/i }).first();
     await inspectBtn.click();
+    await expect(page.locator("text=NO ALTERNATIVE ON CAMPUS").first()).toBeVisible();
 
     // Verify explanation of no feasible solution
     await expect(page.locator("text=No Feasible On-Campus Alternative Found")).toBeVisible();
@@ -87,7 +87,7 @@ test.describe("Timora Scheduling & Conflict Resolution Journey", () => {
     await expect(page.locator("text=Strict Regulatory Prohibitions:")).toBeVisible();
 
     // Verify that Apply Resolution is NOT available, only Escalate to Dean
-    await expect(page.getByRole("button", { name: /Apply Resolution/i })).not.toBeVisible();
+    await expect(page.getByRole("button", { name: /Confirm & Commit Resolution/i })).not.toBeVisible();
     const escalateBtn = page.getByRole("button", { name: /Escalate to Dean/i });
     await expect(escalateBtn).toBeVisible();
     await escalateBtn.click();
@@ -155,10 +155,10 @@ test.describe("Timora Scheduling & Conflict Resolution Journey", () => {
     await expect(page.locator("text=Dr. Eleanor Vance").first()).toBeVisible();
   });
 
-  test("Ask Timora Copilot: Responds deterministically even with AI fallback", async ({
+  test("Ask Timora Copilot: Grounds answers in timetable record references", async ({
     request,
   }) => {
-    // Test API route directly to verify deterministic fallback and safety
+    // Conflict answers should include the actual repository records used to ground the response.
     const response = await request.post("/api/ask-synapse", {
       data: {
         message: "Find conflicts currently in the schedule",
@@ -174,5 +174,18 @@ test.describe("Timora Scheduling & Conflict Resolution Journey", () => {
     expect(json.reply.toLowerCase()).toMatch(/conflict|clash|schedule|lh-201|found/i);
     expect(json.toolResults).toBeDefined();
     expect(json.toolResults.length).toBeGreaterThan(0);
+    expect(json.sources.some((source: { type: string; id: string }) => source.type === "conflict" && source.id)).toBe(true);
+
+    const scheduleResponse = await request.post("/api/ask-timora", {
+      data: {
+        message: "Find timetable sessions for CS-401",
+        userRole: "academic_admin",
+      },
+    });
+    expect(scheduleResponse.ok()).toBe(true);
+    const schedule = await scheduleResponse.json();
+    const timetableTool = schedule.toolResults.find((result: { toolName: string }) => result.toolName === "searchTimetable");
+    expect(timetableTool?.data.totalCount).toBeGreaterThan(0);
+    expect(schedule.sources.some((source: { type: string; id: string }) => source.type === "session" && source.id)).toBe(true);
   });
 });

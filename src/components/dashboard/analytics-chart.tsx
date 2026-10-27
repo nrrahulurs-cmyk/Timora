@@ -15,15 +15,26 @@ import {
   Area,
 } from "recharts";
 import type { ChartDataPoint } from "@/lib/repository/scheduling-repository";
+import type { SynapseCollegeDataset } from "@/types/domain";
 import { ProgressBar } from "@/components/ui/metric-indicator";
 import { WeeklyScheduleOverview } from "./weekly-schedule-overview";
 
 interface AnalyticsChartProps {
   data: ChartDataPoint[];
+  dataset: SynapseCollegeDataset;
 }
 
-export function AnalyticsChart({ data }: AnalyticsChartProps) {
+export function AnalyticsChart({ data, dataset }: AnalyticsChartProps) {
   const [metric, setMetric] = React.useState<"utilisation" | "sessions" | "conflicts" | "schedule">("utilisation");
+  const categoryRates = React.useMemo(() => {
+    const average = (key: "lectureHalls" | "labs" | "seminarRooms") =>
+      data.length ? Math.round(data.reduce((sum, point) => sum + point[key], 0) / data.length) : 0;
+    return {
+      lectureHalls: average("lectureHalls"),
+      labs: average("labs"),
+      seminarRooms: average("seminarRooms"),
+    };
+  }, [data]);
 
   return (
     <Card className="flex flex-col justify-between bg-white border border-slate-200/80 shadow-xs rounded-3xl overflow-hidden">
@@ -77,7 +88,7 @@ export function AnalyticsChart({ data }: AnalyticsChartProps) {
 
       <CardContent className="pt-3 px-5 pb-4">
         {metric === "schedule" ? (
-          <WeeklyScheduleOverview />
+          <WeeklyScheduleOverview dataset={dataset} />
         ) : (
           <>
             <div className="h-[240px] w-full">
@@ -205,23 +216,23 @@ export function AnalyticsChart({ data }: AnalyticsChartProps) {
               <div className="space-y-1">
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-500 text-[11px]">Lecture Halls (150+ seats)</span>
-                  <span className="font-semibold text-slate-800 text-[11px]">91.4%</span>
+                  <span className="font-semibold text-slate-800 text-[11px]">{categoryRates.lectureHalls}%</span>
                 </div>
-                <ProgressBar value={91.4} variant="primary" />
+                <ProgressBar value={categoryRates.lectureHalls} variant="primary" />
               </div>
               <div className="space-y-1">
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-500 text-[11px]">Computing & Tech Labs</span>
-                  <span className="font-semibold text-slate-800 text-[11px]">86.2%</span>
+                  <span className="font-semibold text-slate-800 text-[11px]">{categoryRates.labs}%</span>
                 </div>
-                <ProgressBar value={86.2} variant="success" />
+                <ProgressBar value={categoryRates.labs} variant="success" />
               </div>
               <div className="space-y-1">
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-500 text-[11px]">Seminar & Tutorial Rooms</span>
-                  <span className="font-semibold text-slate-800 text-[11px]">67.5%</span>
+                  <span className="font-semibold text-slate-800 text-[11px]">{categoryRates.seminarRooms}%</span>
                 </div>
-                <ProgressBar value={67.5} variant="warning" />
+                <ProgressBar value={categoryRates.seminarRooms} variant="warning" />
               </div>
             </div>
           </>

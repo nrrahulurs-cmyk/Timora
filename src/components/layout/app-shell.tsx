@@ -1,194 +1,61 @@
 "use client";
-
 import * as React from "react";
-import { Sidebar } from "@/components/layout/sidebar";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { Toaster } from "@/components/feedback/toaster";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-} from "@/components/ui/dialog";
-import { Search, Calendar, Users, Building, AlertTriangle, Sparkles, Menu } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { TimoLauncher } from "@/components/companion/timo-launcher";
+import { usePathname, useRouter } from "next/navigation";
+import { Menu, Search, ArrowUpRight, LoaderCircle } from "lucide-react";
+import { Sidebar } from "./sidebar";
+import { navigation } from "./navigation";
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Toaster } from "@/components/feedback/toaster";
 import { TimoWorkspaceModal } from "@/components/companion/timo-workspace-modal";
+import { useAuth } from "@/lib/auth/auth-context";
+import { TimoLauncher } from "@/components/companion/timo-launcher";
 
-interface AppShellProps {
-  children: React.ReactNode;
-}
-
-export function AppShell({ children }: AppShellProps) {
+export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const router = useRouter();
+  const { isAuthenticated, isLoading } = useAuth();
+  const [mobileOpen, setMobileOpen] = React.useState(false);
   const [searchOpen, setSearchOpen] = React.useState(false);
-  const [searchQuery, setSearchQuery] = React.useState("");
+  const [query, setQuery] = React.useState("");
   const [copilotOpen, setCopilotOpen] = React.useState(false);
-
-  // Keyboard shortcut for command palette (⌘K / Ctrl+K) and copilot (⌘J)
+  const [context, setContext] = React.useState<{ sessionId?: string; prompt?: string }>({});
   React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        setSearchOpen((prev) => !prev);
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === "j") {
-        e.preventDefault();
-        setCopilotOpen((prev) => !prev);
-      }
+    const keys = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); setSearchOpen(value => !value); }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "j") { event.preventDefault(); setCopilotOpen(value => !value); }
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    const openCopilot = (event: Event) => { setContext((event as CustomEvent).detail || {}); setCopilotOpen(true); };
+    const openSearch = () => setSearchOpen(true);
+    window.addEventListener("keydown", keys); window.addEventListener("timora:copilot-open", openCopilot); window.addEventListener("timora:search-open", openSearch);
+    return () => { window.removeEventListener("keydown", keys); window.removeEventListener("timora:copilot-open", openCopilot); window.removeEventListener("timora:search-open", openSearch); };
   }, []);
-
-  // If on login route, render children full-screen without app frame
-  if (pathname.startsWith("/login")) {
-    return (
-      <div className="min-h-screen w-screen bg-[#F4F5FB] font-sans antialiased text-slate-800">
-        {children}
-        <Toaster />
-      </div>
-    );
-  }
-
-  const searchItems = [
-    { label: "Timetable Studio", category: "Scheduling", href: "/timetable", icon: Calendar },
-    { label: "Conflict Resolution Ledger", category: "Conflicts", href: "/conflicts", icon: AlertTriangle },
-    { label: "Room LH-201 (180 Seats)", category: "Rooms", href: "/rooms", icon: Building },
-    { label: "Room Lab-Bio-01 (BSL-3)", category: "Rooms", href: "/rooms", icon: Building },
-    { label: "Dr. Alan Turing", category: "Faculty", href: "/faculty", icon: Users },
-    { label: "Dr. Sarah Lin", category: "Faculty", href: "/faculty", icon: Users },
-    { label: "Institutional Analytics", category: "Performance", href: "/analytics", icon: Sparkles },
-  ];
-
-  const filteredItems = searchItems.filter(
-    (item) =>
-      item.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.category.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  return (
-    <div className="bg-[#F4F5FB] text-[#1E293B] font-sans min-h-screen relative flex items-center justify-center p-3 lg:p-6 antialiased selection:bg-[#FF6B4A] selection:text-white">
-      {/* ── Ambient Radial Glow Shapes (Google Stitch Exact Physics) ── */}
-      <div aria-hidden="true" className="bg-blob-1" />
-      <div aria-hidden="true" className="bg-blob-2" />
-
-      {/* ── Master Floating Application Window ───────────────────── */}
-      <main
-        className="relative z-10 w-full max-w-[1560px] h-[92vh] max-h-[1050px] min-h-[720px] bg-white rounded-[32px] lg:rounded-[38px] shadow-app-window border border-white/90 p-4 sm:p-5 lg:p-7 flex flex-col lg:flex-row gap-6 overflow-hidden"
-        data-purpose="master-shell"
-      >
-        {/* ── Mobile Header (only on small viewports) ──────────────── */}
-        <div className="lg:hidden flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(true)}
-              className="p-1.5 rounded-xl text-slate-600 hover:bg-slate-100 transition"
-              aria-label="Open menu"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-xl bg-slate-900 flex items-center justify-center text-white text-xs font-bold">
-                T
-              </div>
-              <span className="font-bold text-slate-900 text-sm">timora</span>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setSearchOpen(true)}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
-            aria-label="Search"
-          >
-            <Search className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* ── Desktop Left Sidebar ─────────────────────────────────── */}
-        <div className="hidden lg:flex shrink-0 h-full border-r border-slate-100 pr-5">
-          <Sidebar />
-        </div>
-
-        {/* ── Mobile Sidebar Drawer ────────────────────────────────── */}
-        <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-          <SheetContent side="left" className="p-5 w-[280px] bg-white border-r">
-            <Sidebar onNavigate={() => setMobileMenuOpen(false)} />
-          </SheetContent>
-        </Sheet>
-
-        {/* ── Main Workspace ───────────────────────────────────────── */}
-        <section
-          className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto scrollbar-thin pr-1"
-          data-purpose="center-workspace"
-        >
-          {children}
-        </section>
-      </main>
-
-      {/* ── Global Command Search Modal (⌘K) ────────────────────────── */}
-      <Dialog open={searchOpen} onOpenChange={setSearchOpen}>
-        <DialogContent className="max-w-md p-0 overflow-hidden gap-0 rounded-3xl border border-slate-100 shadow-app-window">
-          <DialogHeader className="p-3.5 border-b border-slate-100">
-            <div className="flex items-center gap-2.5">
-              <Search className="h-4 w-4 text-slate-400 shrink-0" />
-              <input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search classes, rooms, faculty... (Esc to close)"
-                className="w-full text-xs outline-none bg-transparent placeholder:text-slate-400 text-slate-800"
-                autoFocus
-              />
-            </div>
-          </DialogHeader>
-
-          <div className="p-2.5 max-h-72 overflow-y-auto space-y-1">
-            <div className="text-[10px] uppercase font-semibold text-slate-400 px-2 py-1">
-              Quick Suggestions
-            </div>
-            {filteredItems.length === 0 ? (
-              <div className="p-4 text-center text-xs text-slate-400">
-                No matching results found
-              </div>
-            ) : (
-              filteredItems.map((item, idx) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={idx}
-                    href={item.href}
-                    onClick={() => setSearchOpen(false)}
-                    className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 text-xs text-slate-800 transition-colors"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Icon className="h-4 w-4 text-[#FF6B4A]" />
-                      <span>{item.label}</span>
-                    </div>
-                    <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full font-medium">
-                      {item.category}
-                    </span>
-                  </Link>
-                );
-              })
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Global Floating Timo AI Companion Launcher (⌘J) ────────── */}
-      <TimoLauncher
-        isOpen={copilotOpen}
-        onClick={() => setCopilotOpen((prev) => !prev)}
-        activeConflictCount={5}
-      />
-
-      {/* ── Global Timo AI Companion Workspace Modal ───────────────── */}
-      <TimoWorkspaceModal open={copilotOpen} onOpenChange={setCopilotOpen} />
-
-      {/* ── Global Toast Notifications ──────────────────────────────── */}
-      <Toaster />
+  React.useEffect(() => {
+    if (!isLoading && !isAuthenticated && !pathname.startsWith("/login")) router.replace("/login");
+  }, [isAuthenticated, isLoading, pathname, router]);
+  if (pathname.startsWith("/login")) return <>{children}<Toaster /></>;
+  if (isLoading) return <div role="status" className="flex min-h-dvh items-center justify-center gap-3 text-sm"><LoaderCircle size={18} className="animate-spin" />Opening your workspace…</div>;
+  if (!isAuthenticated) return <div role="status" className="flex min-h-dvh items-center justify-center gap-3 text-sm"><LoaderCircle size={18} className="animate-spin" />Opening sign in…</div>;
+  const current = navigation.find(item => item.href === pathname);
+  const results = navigation.filter(item => `${item.label} ${item.group}`.toLowerCase().includes(query.toLowerCase()));
+  return <div className="relative flex h-dvh overflow-hidden bg-[#f4f5fb] p-2 text-slate-800 sm:p-3 lg:p-5">
+    <div aria-hidden="true" className="bg-blob-1" /><div aria-hidden="true" className="bg-blob-2" />
+    <div className="relative z-10 mx-auto flex h-full w-full max-w-[1800px] overflow-hidden rounded-[24px] border border-white/90 bg-white/85 shadow-app-window backdrop-blur-xl lg:rounded-[30px]">
+    <a href="#main-content" className="sr-only z-[100] rounded bg-white p-3 focus:not-sr-only focus:absolute">Skip to main content</a>
+    <div className="hidden h-full w-[224px] shrink-0 border-r border-slate-200/60 xl:w-[240px] lg:block"><Sidebar /></div>
+    <div className="flex min-w-0 flex-1 flex-col">
+      <header className="flex h-17 shrink-0 items-center justify-between gap-3 border-b border-slate-200/60 bg-white/55 px-5 sm:px-9">
+        <div className="flex min-w-0 items-center gap-3"><button className="grid h-10 w-10 place-items-center rounded-lg hover:bg-slate-100 lg:hidden" aria-label="Open menu" onClick={() => setMobileOpen(true)}><Menu size={20} /></button><span className="truncate text-sm font-medium lg:hidden">{current?.label || "Workspace"}</span><span className="hidden text-xs text-[#626a64] lg:block">Institutional workspace</span></div>
+        <button onClick={() => setSearchOpen(true)} aria-label="Search workspace" className="flex h-10 shrink-0 items-center gap-2 rounded-xl border border-slate-200/70 bg-white/75 px-3 text-xs text-slate-600 transition-colors hover:bg-white"><Search size={16} /><span className="hidden sm:inline">Search</span><kbd className="hidden rounded px-1 text-[10px] md:inline">⌘ K</kbd></button>
+      </header>
+      <main id="main-content" tabIndex={-1} className="workspace-canvas min-h-0 flex-1 overflow-y-auto px-5 py-7 pb-24 sm:px-9 sm:py-9 xl:px-10 scrollbar-thin" data-purpose="center-workspace"><div className="mx-auto w-full max-w-[1500px]">{children}</div></main>
     </div>
-  );
+    </div>
+    <Sheet open={mobileOpen} onOpenChange={setMobileOpen}><SheetContent side="left" className="w-[280px] bg-white/95 p-0 backdrop-blur-xl"><SheetTitle className="sr-only">Navigation</SheetTitle><SheetDescription className="sr-only">Academic workspaces and account</SheetDescription><Sidebar onNavigate={() => setMobileOpen(false)} /></SheetContent></Sheet>
+    <Dialog open={searchOpen} onOpenChange={setSearchOpen}><DialogContent className="w-[calc(100%-32px)] gap-0 overflow-hidden p-0 sm:max-w-lg"><div className="border-b p-5 pr-12"><DialogTitle className="text-base">Go to a workspace</DialogTitle><DialogDescription className="sr-only">Search Timora pages</DialogDescription><label className="mt-4 flex items-center gap-3"><Search size={18} className="text-secondary" /><input aria-label="Search workspaces" autoFocus placeholder="Timetable, rooms, requests…" value={query} onChange={event => setQuery(event.target.value)} className="h-10 w-full bg-transparent text-sm outline-none" /></label></div><div className="max-h-[55dvh] overflow-auto p-2">{results.length ? results.map(({ icon: Icon, ...item }) => <Link key={item.href} href={item.href} onClick={() => setSearchOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-[#f3f4f0]"><Icon size={17} className="text-secondary" /><span className="flex-1">{item.label}</span><ArrowUpRight size={14} className="text-secondary" /></Link>) : <p className="p-6 text-center text-sm text-secondary">No workspaces match “{query}”.</p>}</div></DialogContent></Dialog>
+    <TimoWorkspaceModal open={copilotOpen} onOpenChange={setCopilotOpen} context={context} />
+    <TimoLauncher isOpen={copilotOpen} onClick={() => setCopilotOpen(value => !value)} />
+    <Toaster />
+  </div>;
 }

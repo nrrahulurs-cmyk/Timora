@@ -127,6 +127,7 @@ export function validateSession(
 ): SessionValidationResult {
   const hardViolations: HardViolation[] = [];
   const softEvaluations: SoftEvaluation[] = [];
+  if (session.status === "cancelled") return { sessionId: session.id, isValid: true, hardViolations, softEvaluations, softScore: 100 };
 
   const subject = dataset.subjects.find((s) => s.id === session.subjectId);
   const classroom = dataset.classrooms.find((c) => c.id === session.classroomId);
@@ -152,7 +153,7 @@ export function validateSession(
   }
 
   const allSessions = context.activeSessions || dataset.timetableSessions;
-  const otherSessions = allSessions.filter((s) => s.id !== session.id);
+  const otherSessions = allSessions.filter((s) => s.id !== session.id && s.status !== "cancelled" && s.academicTermId === session.academicTermId && s.effectiveFrom <= session.effectiveUntil && s.effectiveUntil >= session.effectiveFrom);
 
   // ── HARD 1: Room Double-Booking ──────────────────────────────────────────
   for (const other of otherSessions) {
@@ -252,12 +253,15 @@ export function validateSession(
 
   // ── HARD 6: Faculty Hard Availability (Blocked Slots) ─────────────────────
   const dayPattern = faculty.availability.find((p) => p.dayOfWeek === slot.dayOfWeek);
-  if (dayPattern && dayPattern.blockedSlotIds.includes(slot.id)) {
+  const blockedOverlap = dayPattern?.blockedSlotIds.some(id => { const blocked = dataset.timeSlots.find(item => item.id === id); return blocked && slotsOverlap(slot, blocked); });
+  // An absent day pattern carries no configured day-specific restriction.
+  // Explicit availability and blocked intervals, when supplied, are authoritative.
+  if (faculty.status !== "active" || blockedOverlap || (dayPattern && !dayPattern.availableSlotIds.includes(slot.id))) {
     hardViolations.push({
       rule: "faculty_hard_availability",
       constraintType: "faculty_overlap",
       title: `Faculty Blocked Duty Interval for ${faculty.name}`,
-      description: `${faculty.name} is strictly unavailable at ${slot.label} due to institutional governance, committee duties, or research allocations.`,
+      description: `${faculty.name} is not available in the recorded availability pattern for ${slot.dayOfWeek} ${slot.startTime}–${slot.endTime}${faculty.status !== "active" ? ` (${faculty.status})` : ""}.`,
       conflictingEntityId: faculty.id,
     });
   }
@@ -268,16 +272,18 @@ export function validateSession(
       r.classroomId === classroom.id &&
       r.blocksRegularClasses &&
       r.status === "approved" &&
-      r.timeSlotIds.includes(slot.id)
+      r.date >= session.effectiveFrom && r.date <= session.effectiveUntil &&
+      new Date(`${r.date}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" }) === slot.dayOfWeek &&
+      r.timeSlotIds.some(id => { const reserved = dataset.timeSlots.find(item => item.id === id); return reserved && slotsOverlap(slot, reserved); })
   );
 
-  if (reservationCollision) {
+  if (reservationCollision || classroom.status === "Maintenance") {
     hardViolations.push({
       rule: "reservation_collision",
       constraintType: "maintenance_block",
       title: `Pre-Approved Reservation Block in ${classroom.code}`,
-      description: `Classroom ${classroom.code} is reserved for '${reservationCollision.title}' (${reservationCollision.category}) on ${slot.label}. Regular classes are blocked.`,
-      conflictingReservationId: reservationCollision.id,
+      description: reservationCollision ? `Classroom ${classroom.code} is reserved for '${reservationCollision.title}' on ${reservationCollision.date}. Regular classes are blocked.` : `Classroom ${classroom.code} is marked under maintenance.`,
+      conflictingReservationId: reservationCollision?.id,
       conflictingEntityId: classroom.id,
     });
   }
@@ -497,6 +503,9 @@ export function searchEligibleRooms(
   const sessions = activeSessions || dataset.timetableSessions;
 
   return dataset.classrooms.filter((room) => {
+    // Do not propose rooms that are explicitly out of service.
+    if (room.status === "Maintenance") return false;
+
     // Capacity check
     if (room.capacity < section.studentCount) return false;
 
@@ -523,6 +532,7 @@ export function searchEligibleRooms(
 
     // Room occupancy check at this slot
     const isOccupied = sessions.some((s) => {
+      if (s.status === "cancelled") return false;
       if (excludeSessionId && s.id === excludeSessionId) return false;
       if (s.classroomId !== room.id) return false;
       const sSlot = dataset.timeSlots.find((t) => t.id === s.timeSlotId);
@@ -552,7 +562,7 @@ export function checkFacultyAvailability(
 
   // Check blocked slots
   const dayPattern = faculty.availability.find((p) => p.dayOfWeek === targetSlot.dayOfWeek);
-  if (dayPattern && dayPattern.blockedSlotIds.includes(timeSlotId)) {
+  if (faculty.status !== "active" || !dayPattern || !dayPattern.availableSlotIds.includes(timeSlotId) || dayPattern.blockedSlotIds.some(id => { const blocked = dataset.timeSlots.find(item => item.id === id); return blocked && slotsOverlap(blocked, targetSlot); })) {
     return {
       isAvailable: false,
       isPreferred: false,
@@ -563,6 +573,7 @@ export function checkFacultyAvailability(
   // Check teaching collisions
   const sessions = activeSessions || dataset.timetableSessions;
   const isTeaching = sessions.some((s) => {
+    if (s.status === "cancelled") return false;
     if (excludeSessionId && s.id === excludeSessionId) return false;
     if (s.facultyId !== facultyId) return false;
     const sSlot = dataset.timeSlots.find((t) => t.id === s.timeSlotId);
@@ -596,6 +607,7 @@ export function checkStudentGroupAvailability(
 
   const sessions = activeSessions || dataset.timetableSessions;
   const collision = sessions.find((s) => {
+    if (s.status === "cancelled") return false;
     if (excludeSessionId && s.id === excludeSessionId) return false;
     if (s.sectionId !== sectionId) return false;
     const sSlot = dataset.timeSlots.find((t) => t.id === s.timeSlotId);

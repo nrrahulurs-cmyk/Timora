@@ -6,13 +6,5 @@ export const metadata = {
 };
 
 export default function StudentLoginPage() {
-  return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <LoginForm
-        forcedRole="student_viewer"
-        portalTitle="Student Schedule Sign-In"
-        portalDescription="View weekly cohort timetable, room assignments, and academic schedule updates"
-      />
-    </div>
-  );
+  return <LoginForm forcedRole="student_viewer" portalTitle="Student access" />;
 }

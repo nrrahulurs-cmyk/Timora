@@ -30,7 +30,10 @@ import type {
 } from "@/types/domain";
 
 import { SYNAPSE_SEED_DATA } from "@/data/fixtures";
-import { validateSession, type HardViolation } from "@/lib/scheduling/constraint-engine";
+import { calculateScheduleAnalytics } from "@/lib/analytics/metrics";
+import { validateSession, validateSchedule, type HardViolation } from "@/lib/scheduling/constraint-engine";
+import { previewSchedulePlan, type SchedulePlan, type SchedulePlanResult } from "@/lib/scheduling/plan";
+import { createDemoHttpRepository } from "./demo-protocol";
 
 // ── Legacy/Dashboard Types Preserved for Dashboard UI ────────────────────────
 
@@ -45,6 +48,8 @@ export interface KpiMetrics {
     count: number;
     roomClashes: number;
     facultyClashes: number;
+    criticalCount: number;
+    warningCount: number;
     supportingText: string;
   };
   availableRooms: {
@@ -55,7 +60,6 @@ export interface KpiMetrics {
   };
   roomUtilisation: {
     rate: number;
-    targetBaseline: number;
     supportingText: string;
   };
   pendingApprovals: {
@@ -112,94 +116,9 @@ export interface RoomRecord {
 
 // ── Stable Dashboard Fixture Constants ──────────────────────────────────────
 
-export const STABLE_KPI_METRICS: KpiMetrics = {
-  scheduledClasses: {
-    count: 1284,
-    total: 1318,
-    percentage: 97.4,
-    supportingText: "1,284 of 1,318 curriculum slots filled",
-  },
-  unresolvedConflicts: {
-    count: 5,
-    roomClashes: 2,
-    facultyClashes: 1,
-    supportingText: "3 critical • 2 warnings",
-  },
-  availableRooms: {
-    available: 11,
-    total: 15,
-    occupied: 4,
-    supportingText: "11 of 15 facilities free this hour",
-  },
-  roomUtilisation: {
-    rate: 86.2,
-    targetBaseline: 85.0,
-    supportingText: "1.2% above target baseline (85.0%)",
-  },
-  pendingApprovals: {
-    count: 7,
-    classExchanges: 4,
-    extraClasses: 3,
-    supportingText: "4 exchanges • 3 extra classes",
-  },
-};
-
-export const STABLE_CHART_WEEKLY: ChartDataPoint[] = [
-  {
-    period: "Mon",
-    roomUtilisation: 88,
-    scheduledSessions: 284,
-    activeConflicts: 1,
-    lectureHalls: 92,
-    labs: 86,
-    seminarRooms: 68,
-  },
-  {
-    period: "Tue",
-    roomUtilisation: 94,
-    scheduledSessions: 310,
-    activeConflicts: 2,
-    lectureHalls: 98,
-    labs: 92,
-    seminarRooms: 74,
-  },
-  {
-    period: "Wed",
-    roomUtilisation: 91,
-    scheduledSessions: 295,
-    activeConflicts: 3,
-    lectureHalls: 94,
-    labs: 90,
-    seminarRooms: 71,
-  },
-  {
-    period: "Thu",
-    roomUtilisation: 92,
-    scheduledSessions: 302,
-    activeConflicts: 1,
-    lectureHalls: 96,
-    labs: 89,
-    seminarRooms: 70,
-  },
-  {
-    period: "Fri",
-    roomUtilisation: 72,
-    scheduledSessions: 229,
-    activeConflicts: 0,
-    lectureHalls: 75,
-    labs: 72,
-    seminarRooms: 55,
-  },
-  {
-    period: "Sat",
-    roomUtilisation: 34,
-    scheduledSessions: 84,
-    activeConflicts: 0,
-    lectureHalls: 30,
-    labs: 40,
-    seminarRooms: 20,
-  },
-];
+const seedAnalytics = calculateScheduleAnalytics(SYNAPSE_SEED_DATA);
+export const STABLE_KPI_METRICS: KpiMetrics = seedAnalytics.kpiMetrics;
+export const STABLE_CHART_WEEKLY: ChartDataPoint[] = seedAnalytics.chartData;
 
 export const STABLE_ATTENTION_ITEMS: AttentionItem[] = [
   {
@@ -497,6 +416,8 @@ export const SEED_ROOMS = STABLE_ROOMS;
 // ── Independent Repository Interface ─────────────────────────────────────────
 
 export interface SchedulingRepository {
+  saveTimetableChanges(plan: SchedulePlan): Promise<SchedulePlanResult>;
+  advanceExtraClassRequest(id: string, reviewedBy: string): Promise<boolean>;
   // Domain queries & mutations
   getDataset(): Promise<SynapseCollegeDataset>;
   getDepartments(): Promise<Department[]>;
@@ -635,6 +556,8 @@ export interface SchedulingRepository {
 // ── Deterministic Local Demo Implementation ──────────────────────────────────
 
 export class LocalDemoSchedulingRepository implements SchedulingRepository {
+  private actor = { id: "USER-VANCE", name: "Timetable Coordinator", role: "timetable_coordinator" };
+  setActor(actor: { id: string; name: string; role: string }) { this.actor = actor; }
   private dataset: SynapseCollegeDataset;
   private attentionItems: AttentionItem[];
   private activityLog: ActivityItem[];
@@ -662,7 +585,40 @@ export class LocalDemoSchedulingRepository implements SchedulingRepository {
 
   // Domain Queries
   async getDataset(): Promise<SynapseCollegeDataset> {
-    return { ...this.dataset };
+    return structuredClone(this.dataset);
+  }
+
+  async saveTimetableChanges(input: SchedulePlan): Promise<SchedulePlanResult> {
+    const preview = previewSchedulePlan(this.dataset, input);
+    if (!preview.isValid) return { success: false, message: preview.errors.join("\n"), affectedSessionIds: [] };
+    const timestamp = new Date().toISOString();
+    const history = preview.changes.map(({ id, before, after }) => ({
+      id: `HIST-${crypto.randomUUID()}`, versionId: after.versionId, entityType: "session" as const, entityId: id,
+      actorId: this.actor.id, actorName: this.actor.name, actorRole: this.actor.role,
+      action: preview.plan.reason, targetName: id, previousValue: before ? JSON.stringify(before) : undefined,
+      newValue: JSON.stringify(after), timestamp, category: "modification" as const,
+    }));
+    this.dataset.timetableSessions = preview.sessions;
+    this.dataset.changeHistory.unshift(...history);
+    const touched = new Set(preview.changes.map((change) => change.id));
+    this.dataset.conflicts = this.dataset.conflicts.map((conflict) => {
+      if (conflict.status !== "active" || !conflict.sessionIds.some((id) => touched.has(id))) return conflict;
+      const stillPresent = conflict.sessionIds.some((id) => {
+        const session = preview.sessions.find((item) => item.id === id && item.status !== "cancelled");
+        return session && validateSession(session, this.dataset).hardViolations.some((violation) => violation.constraintType === conflict.type);
+      });
+      return stillPresent ? conflict : { ...conflict, status: "resolved", resolutionNotes: preview.plan.reason };
+    });
+    return { success: true, message: `${preview.changes.length} session changes saved and recorded in history.`, affectedSessionIds: [...touched] };
+  }
+
+  async advanceExtraClassRequest(id: string, reviewedBy: string): Promise<boolean> {
+    const request = this.dataset.extraClassRequests.find((item) => item.id === id);
+    if (!request || request.status !== "pending_hod") throw new Error("Only requests awaiting department review can advance.");
+    request.status = "pending_dean";
+    request.reviewedBy = reviewedBy;
+    request.reviewedAt = new Date().toISOString();
+    return true;
   }
 
   async getDepartments(): Promise<Department[]> {
@@ -1308,9 +1264,14 @@ export class LocalDemoSchedulingRepository implements SchedulingRepository {
   async createExtraClassRequest(
     data: Omit<ExtraClassRequest, "id" | "submittedAt">
   ): Promise<ExtraClassRequest> {
+    const { prepareExtraClass } = await import("@/lib/scheduling/extra-class");
+    const preview = prepareExtraClass(this.dataset, data);
+    if (!preview.isValid) throw new Error(preview.errors.join("\n"));
+    if (this.dataset.extraClassRequests.some(request => request.status !== "rejected" && request.subjectId === data.subjectId && request.sectionId === data.sectionId && request.scheduledDate === data.scheduledDate && request.timeSlotId === data.timeSlotId)) throw new Error("An extra-class request already exists for this course, section and time.");
     const newRequest: ExtraClassRequest = {
-      ...data,
-      id: `EXTRA-${Date.now()}`,
+      ...preview.request,
+      status: "pending_hod",
+      id: `EXTRA-${crypto.randomUUID()}`,
       submittedAt: new Date().toISOString(),
     };
     this.dataset.extraClassRequests.unshift(newRequest);
@@ -1320,9 +1281,19 @@ export class LocalDemoSchedulingRepository implements SchedulingRepository {
   async createTeacherExchangeRequest(
     data: Omit<TeacherExchangeRequest, "id" | "submittedAt">
   ): Promise<TeacherExchangeRequest> {
+    const first = this.dataset.timetableSessions.find(item => item.id === data.requesterSessionId && item.facultyId === data.requesterFacultyId && item.status !== "cancelled");
+    const second = this.dataset.timetableSessions.find(item => item.id === data.targetSessionId && item.facultyId === data.targetFacultyId && item.status !== "cancelled");
+    if (!first || !second || first.id === second.id || first.facultyId === second.facultyId) throw new Error("Choose two different active sessions belonging to the selected instructors.");
+    if (typeof data.reason !== "string" || data.reason.trim().length < 5 || data.reason.length > 500 || !/^\d{4}-\d{2}-\d{2}$/.test(data.date)) throw new Error("Enter a valid date and a reason between 5 and 500 characters.");
+    const day = new Date(`${data.date}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
+    const requesterSlot = this.dataset.timeSlots.find(item => item.id === first.timeSlotId);
+    const targetSlot = this.dataset.timeSlots.find(item => item.id === second.timeSlotId);
+    if (!requesterSlot || !targetSlot || requesterSlot.dayOfWeek !== day || first.academicTermId !== second.academicTermId || data.date < first.effectiveFrom || data.date > first.effectiveUntil) throw new Error("The date must be a scheduled occurrence of the requester session, and both sessions must belong to the same term.");
     const newRequest: TeacherExchangeRequest = {
       ...data,
-      id: `EXCH-${Date.now()}`,
+      status: "pending_hod",
+      isPeerAccepted: false,
+      id: `EXCH-${crypto.randomUUID()}`,
       submittedAt: new Date().toISOString(),
     };
     this.dataset.teacherExchangeRequests.unshift(newRequest);
@@ -1332,6 +1303,18 @@ export class LocalDemoSchedulingRepository implements SchedulingRepository {
   async approveExtraClassRequest(id: string, reviewedBy: string): Promise<boolean> {
     const req = this.dataset.extraClassRequests.find((r) => r.id === id);
     if (!req) return false;
+    if (req.status === "approved") return true;
+    if (req.status !== "pending_dean") throw new Error("Department review is required before final approval.");
+    const section = this.dataset.sections.find((item) => item.id === req.sectionId);
+    const version = this.dataset.scheduleVersions.find((item) => item.academicTermId === section?.academicTermId && item.status === "draft");
+    if (!section || !version) throw new Error("An active section and draft version are required.");
+    const result = await this.saveTimetableChanges({ updates: [], inserts: [{
+      id: `EXTRA-SESSION-${req.id}`, academicTermId: section.academicTermId, versionId: version.id,
+      subjectId: req.subjectId, sectionId: req.sectionId, facultyId: req.facultyId, classroomId: req.classroomId,
+      timeSlotId: req.timeSlotId, status: "extra_session", isRecurringWeekly: false,
+      effectiveFrom: req.scheduledDate, effectiveUntil: req.scheduledDate,
+    }], reason: `Approved extra class ${id}` });
+    if (!result.success) throw new Error(result.message);
     req.status = "approved";
     req.reviewedBy = reviewedBy;
     req.reviewedAt = new Date().toISOString();
@@ -1348,12 +1331,7 @@ export class LocalDemoSchedulingRepository implements SchedulingRepository {
   }
 
   async approveTeacherExchangeRequest(id: string, reviewedBy: string): Promise<boolean> {
-    const req = this.dataset.teacherExchangeRequests.find((r) => r.id === id);
-    if (!req) return false;
-    req.status = "approved";
-    req.reviewedBy = reviewedBy;
-    req.reviewedAt = new Date().toISOString();
-    return true;
+    throw new Error("Exchange approval is unavailable until date-specific timetable exceptions and verified peer consent are supported. The request has not changed.");
   }
 
   async rejectTeacherExchangeRequest(id: string, reviewedBy: string): Promise<boolean> {
@@ -1457,6 +1435,10 @@ export class LocalDemoSchedulingRepository implements SchedulingRepository {
     unresolvedConflicts: ConflictRecord[];
   }> {
     const activeConflicts = this.dataset.conflicts.filter((c) => c.status === "active");
+    if (activeConflicts.some((conflict) => conflict.severity === "critical")) return { success: false, message: "Resolve critical conflicts before publication.", unresolvedConflicts: activeConflicts };
+    if (!validateSchedule(this.dataset).isValid) return { success: false, message: "Current schedule validation found hard-constraint violations. Resolve them before publication.", unresolvedConflicts: activeConflicts };
+    const draft = this.dataset.scheduleVersions.find(version => version.status === "draft" && (version.versionNumber === versionNumber || version.versionNumber.replace(/-preview$/, "") === versionNumber));
+    if (!draft) return { success: false, message: "Choose an existing draft version to publish.", unresolvedConflicts: activeConflicts };
 
     // 1. Archive current published versions (Do not destroy)
     for (const v of this.dataset.scheduleVersions) {
@@ -1467,8 +1449,9 @@ export class LocalDemoSchedulingRepository implements SchedulingRepository {
 
     // 2. Create new published schedule version
     const newVer: ScheduleVersion = {
+      sessionSnapshot: structuredClone(this.dataset.timetableSessions),
       id: `VER-${versionNumber.replace(/^v/, "")}-${Date.now().toString().slice(-4)}`,
-      academicTermId: "TERM-FALL-2026",
+      academicTermId: draft.academicTermId,
       versionNumber,
       status: "published",
       publishedAt: new Date().toISOString(),
@@ -1498,7 +1481,7 @@ export class LocalDemoSchedulingRepository implements SchedulingRepository {
     return {
       success: true,
       version: newVer,
-      message: `Schedule version ${versionNumber} officially published live. Broadcasted to faculty and student portals.`,
+      message: `Schedule version ${versionNumber} saved as the published version with a recoverable session snapshot.`,
       unresolvedConflicts: activeConflicts,
     };
   }
@@ -1514,6 +1497,9 @@ export class LocalDemoSchedulingRepository implements SchedulingRepository {
     if (!target) {
       return { success: false, message: `Version ${versionId} does not exist in history.` };
     }
+
+    if (!target.sessionSnapshot) return { success: false, message: "This historical version has no saved session snapshot and cannot be restored safely." };
+    this.dataset.timetableSessions = structuredClone(target.sessionSnapshot);
 
     // Set target version to published, archive other published
     for (const v of this.dataset.scheduleVersions) {
@@ -1548,52 +1534,14 @@ export class LocalDemoSchedulingRepository implements SchedulingRepository {
 
   // Dashboard Aggregates (Derived dynamically from dataset)
   async getKpiMetrics(): Promise<KpiMetrics> {
-    const activeConflicts = this.dataset.conflicts.filter((c) => c.status === "active");
-    const activeRooms = this.dataset.classrooms;
-    const availableRooms = activeRooms.filter((r) => r.status === "Available");
-    const roomClashes = activeConflicts.filter((c) => c.type === "room_clash").length;
-    const facClashes = activeConflicts.filter((c) => c.type === "faculty_overlap").length;
-    const criticalClashes = activeConflicts.filter((c) => c.severity === "critical").length;
-    const warningClashes = activeConflicts.filter((c) => c.severity === "warning").length;
-
-    return {
-      scheduledClasses: {
-        count: 1284,
-        total: 1318,
-        percentage: 97.4,
-        supportingText: "1,284 of 1,318 curriculum slots filled",
-      },
-      unresolvedConflicts: {
-        count: activeConflicts.length,
-        roomClashes: roomClashes || 2,
-        facultyClashes: facClashes || 1,
-        supportingText: `${criticalClashes || 3} critical • ${warningClashes || 2} warnings`,
-      },
-      availableRooms: {
-        available: availableRooms.length || 11,
-        total: activeRooms.length || 15,
-        occupied: (activeRooms.length || 15) - (availableRooms.length || 11),
-        supportingText: `${availableRooms.length || 11} of ${activeRooms.length || 15} facilities free this hour`,
-      },
-      roomUtilisation: {
-        rate: 86.2,
-        targetBaseline: 85.0,
-        supportingText: "1.2% above target baseline (85.0%)",
-      },
-      pendingApprovals: {
-        count: 7,
-        classExchanges: 4,
-        extraClasses: 3,
-        supportingText: "4 exchanges • 3 extra classes",
-      },
-    };
+    return calculateScheduleAnalytics(this.dataset).kpiMetrics;
   }
 
   async getChartData(
-    metricType: "utilisation" | "sessions" | "conflicts" = "utilisation",
-    range: "week" | "month" | "semester" = "week"
+    _metricType: "utilisation" | "sessions" | "conflicts" = "utilisation",
+    _range: "week" | "month" | "semester" = "week"
   ): Promise<ChartDataPoint[]> {
-    return STABLE_CHART_WEEKLY;
+    return calculateScheduleAnalytics(this.dataset).chartData;
   }
 
   async getAttentionItems(): Promise<AttentionItem[]> {
@@ -1601,14 +1549,15 @@ export class LocalDemoSchedulingRepository implements SchedulingRepository {
   }
 
   async getActivityLog(filter: string = "All"): Promise<ActivityItem[]> {
-    if (filter === "All") return this.activityLog;
+    const activities: ActivityItem[] = this.dataset.changeHistory.map(item => ({ id: item.id, actor: item.actorName, actorRole: item.actorRole, action: item.action, target: item.targetName, timestamp: item.timestamp, category: item.category }));
+    if (filter === "All") return activities;
     const f = filter.toLowerCase();
     if (f === "conflict" || f === "automated" || f === "solver") {
-      return this.activityLog.filter(
+      return activities.filter(
         (item) => item.category === "conflict" || item.category === "automated"
       );
     }
-    return this.activityLog.filter(
+    return activities.filter(
       (item) => item.category.toLowerCase() === f
     );
   }
@@ -1636,7 +1585,7 @@ export class LocalDemoSchedulingRepository implements SchedulingRepository {
     date: string;
     timeSlot: string;
   }): Promise<boolean> {
-    return true;
+    throw new Error("Use Extra classes to select the assigned instructor, section, date and time, then submit a validated request.");
   }
 }
 
@@ -1649,20 +1598,22 @@ import { SupabaseSchedulingRepository } from "./supabase-scheduling-repository";
  * Uses Supabase when valid credentials are present and NEXT_PUBLIC_DEMO_MODE !== 'true',
  * otherwise gracefully falls back to LocalDemoSchedulingRepository.
  */
-const isDemoExplicit = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+const isDemoExplicit = process.env.NEXT_PUBLIC_DEMO_MODE === "true" && process.env.NODE_ENV !== "production";
 const hasSupabaseCredentials = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY &&
   !process.env.NEXT_PUBLIC_SUPABASE_URL.includes("placeholder")
 );
 
-export const activeDataSource: "supabase" | "demo" =
-  !isDemoExplicit && hasSupabaseCredentials ? "supabase" : "demo";
+export const activeDataSource: "supabase" | "demo" | "unconfigured" =
+  isDemoExplicit || process.env.NODE_ENV === "test" ? "demo" : hasSupabaseCredentials ? "supabase" : "unconfigured";
 
 export function createSchedulingRepository(): SchedulingRepository {
+  if (activeDataSource === "unconfigured") return new Proxy({} as SchedulingRepository, { get: (_target, method) => method === "then" ? undefined : async () => { throw new Error("Timora data access is not configured. Set institutional credentials or explicitly enable local demo mode for development."); } });
   if (activeDataSource === "supabase") {
     return new SupabaseSchedulingRepository();
   }
+  if (typeof window !== "undefined" && process.env.NODE_ENV !== "test" && isDemoExplicit) return createDemoHttpRepository();
   return new LocalDemoSchedulingRepository();
 }
 

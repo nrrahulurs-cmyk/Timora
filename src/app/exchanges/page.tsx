@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeftRight,
-  Check,
   X,
   User,
   Clock,
@@ -24,7 +23,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/feedback/use-toast";
 import { schedulingRepository } from "@/lib/repository/scheduling-repository";
-import type { TeacherExchangeRequest, FacultyMember, TimetableSession, Subject } from "@/types/domain";
+import type { TeacherExchangeRequest, FacultyMember, TimetableSession, Subject, TimeSlot } from "@/types/domain";
 
 export default function ClassExchangesPage() {
   const { toast } = useToast();
@@ -32,18 +31,20 @@ export default function ClassExchangesPage() {
   const [requests, setRequests] = React.useState<TeacherExchangeRequest[]>([]);
   const [faculty, setFaculty] = React.useState<FacultyMember[]>([]);
   const [sessions, setSessions] = React.useState<TimetableSession[]>([]);
+  const [timeSlots, setTimeSlots] = React.useState<TimeSlot[]>([]);
   const [subjects, setSubjects] = React.useState<Subject[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
 
   // Propose Swap Drawer State
   const [showProposeModal, setShowProposeModal] = React.useState(false);
-  const [requesterFacultyId, setRequesterFacultyId] = React.useState("FAC-TURING");
-  const [targetFacultyId, setTargetFacultyId] = React.useState("FAC-LOVELACE");
-  const [requesterSessionId, setRequesterSessionId] = React.useState("SESS-CS301-MON");
-  const [targetSessionId, setTargetSessionId] = React.useState("SESS-MATH202-FRI");
-  const [exchangeDate, setExchangeDate] = React.useState("2026-10-26");
-  const [exchangeReason, setExchangeReason] = React.useState("Faculty conference participation substitution");
+  const [requesterFacultyId, setRequesterFacultyId] = React.useState("");
+  const [targetFacultyId, setTargetFacultyId] = React.useState("");
+  const [requesterSessionId, setRequesterSessionId] = React.useState("");
+  const [targetSessionId, setTargetSessionId] = React.useState("");
+  const [exchangeDate, setExchangeDate] = React.useState("");
+  const [exchangeReason, setExchangeReason] = React.useState("");
 
   // Pre-flight validation state
   const [preflightStatus, setPreflightStatus] = React.useState<{
@@ -53,18 +54,25 @@ export default function ClassExchangesPage() {
   }>({ checked: false, valid: true, message: "" });
 
   const loadData = React.useCallback(async () => {
-    setLoading(true);
-    const [allReqs, allFac, allSessions, allSubjects] = await Promise.all([
-      schedulingRepository.getTeacherExchangeRequests(),
-      schedulingRepository.getFaculty(),
-      schedulingRepository.getTimetableSessions(),
-      schedulingRepository.getSubjects(),
-    ]);
-    setRequests(allReqs);
-    setFaculty(allFac);
-    setSessions(allSessions);
-    setSubjects(allSubjects);
-    setLoading(false);
+    setLoadError("");
+    try {
+      const [allReqs, allFac, allSessions, allSubjects, allTimeSlots] = await Promise.all([
+        schedulingRepository.getTeacherExchangeRequests(),
+        schedulingRepository.getFaculty(),
+        schedulingRepository.getTimetableSessions(),
+        schedulingRepository.getSubjects(),
+        schedulingRepository.getTimeSlots(),
+      ]);
+      setRequests(allReqs);
+      setFaculty(allFac);
+      setSessions(allSessions);
+      setSubjects(allSubjects);
+      setTimeSlots(allTimeSlots);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Exchange records could not be loaded.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   React.useEffect(() => {
@@ -82,11 +90,16 @@ export default function ClassExchangesPage() {
       return;
     }
 
-    // Both sessions exist and teachers do not collide
+    const first = sessions.find(session => session.id === requesterSessionId && session.facultyId === requesterFacultyId && session.status !== "cancelled");
+    const second = sessions.find(session => session.id === targetSessionId && session.facultyId === targetFacultyId && session.status !== "cancelled");
+    const weekday = /^\d{4}-\d{2}-\d{2}$/.test(exchangeDate) ? new Date(`${exchangeDate}T12:00:00`).toLocaleDateString("en-US", { weekday: "long" }) : "";
+    const firstSlot = timeSlots.find(slot => slot.id === first?.timeSlotId);
+    const secondSlot = timeSlots.find(slot => slot.id === second?.timeSlotId);
+    const matchingDate = Boolean(first && second && weekday && firstSlot?.dayOfWeek === weekday && secondSlot && first.academicTermId === second.academicTermId && exchangeDate >= first.effectiveFrom && exchangeDate <= first.effectiveUntil);
     setPreflightStatus({
       checked: true,
-      valid: true,
-      message: "Pre-flight validation passed: Zero faculty collisions, zero cohort overlaps, 0 facility conflicts.",
+      valid: Boolean(first && second && first.id !== second.id && matchingDate),
+      message: !first || !second || first.id === second.id ? "Choose two different active sessions belonging to the selected instructors." : !matchingDate ? "The selected date must be a scheduled occurrence of the requester's class, and both sessions must belong to the same term." : "Requester session and date checked. The other occurrence, peer consent and conflicts still require validation before applying.",
     });
   };
 
@@ -96,7 +109,7 @@ export default function ClassExchangesPage() {
     if (!preflightStatus.checked || !preflightStatus.valid) {
       toast({
         title: "Validation Required",
-        description: "Please run pre-flight clash verification before submitting proposal.",
+        description: "Check the selected sessions and date before submitting a request.",
         variant: "destructive",
       });
       return;
@@ -111,12 +124,12 @@ export default function ClassExchangesPage() {
         date: exchangeDate,
         reason: exchangeReason,
         status: "pending_hod",
-        isPeerAccepted: true,
+        isPeerAccepted: false,
       });
 
       toast({
         title: "Teacher Exchange Lodged",
-        description: `Request ${created.id} submitted. Peer accepted. Awaiting departmental HOD sign-off.`,
+        description: `Request ${created.id} submitted for review. Peer consent has not been recorded.`,
         variant: "success",
       });
 
@@ -132,37 +145,15 @@ export default function ClassExchangesPage() {
     }
   };
 
-  // Approve Exchange
-  const handleApprove = async (req: TeacherExchangeRequest) => {
-    if (req.status === "pending_hod") {
-      req.status = "pending_dean";
-      req.reviewedBy = "HOD Lovelace";
-      req.reviewedAt = new Date().toISOString();
-      toast({
-        title: "HOD Approval Granted",
-        description: `Request ${req.id} advanced to Academic Dean for final execution.`,
-        variant: "success",
-      });
-    } else if (req.status === "pending_dean") {
-      await schedulingRepository.approveTeacherExchangeRequest(req.id, "Dean Vance");
-      toast({
-        title: "Teacher Exchange Committed",
-        description: `Swap finalized! Timetable sessions reallocated between instructors with 0 collisions.`,
-        variant: "success",
-      });
-    }
-    loadData();
-  };
-
   // Reject Exchange
   const handleReject = async (req: TeacherExchangeRequest) => {
-    await schedulingRepository.rejectTeacherExchangeRequest(req.id, "Admin Vance");
-    toast({
-      title: "Exchange Rejected",
-      description: `Request ${req.id} was rejected and schedule preserved without alteration.`,
-      variant: "destructive",
-    });
-    loadData();
+    try {
+      await schedulingRepository.rejectTeacherExchangeRequest(req.id, "Reviewer");
+      toast({ title: "Exchange Rejected", description: `Request ${req.id} was rejected and the timetable was not changed.`, variant: "success" });
+      await loadData();
+    } catch (error) {
+      toast({ title: "Rejection failed", description: error instanceof Error ? error.message : "Could not save the decision.", variant: "destructive" });
+    }
   };
 
   const filteredRequests = requests.filter((r) => {
@@ -172,12 +163,22 @@ export default function ClassExchangesPage() {
 
   const pendingCount = requests.filter((r) => r.status === "pending_hod" || r.status === "pending_dean").length;
   const approvedCount = requests.filter((r) => r.status === "approved").length;
+  const peerAcceptedCount = requests.filter((r) => r.isPeerAccepted).length;
+  const sessionLabel = (id: string) => {
+    const session = sessions.find(item => item.id === id);
+    const subject = subjects.find(item => item.id === session?.subjectId);
+    const slot = timeSlots.find(item => item.id === session?.timeSlotId);
+    return `${subject?.code ?? id} · ${slot ? `${slot.dayOfWeek} ${slot.startTime}–${slot.endTime}` : "time unavailable"}`;
+  };
+
+  if (loading) return <div role="status" className="p-8 text-sm text-slate-600">Loading exchange records…</div>;
+  if (loadError) return <div role="alert" className="space-y-3 p-8 text-sm text-rose-800"><p>Exchange records could not be loaded: {loadError}</p><Button variant="outline" onClick={() => void loadData()}>Try again</Button></div>;
 
   return (
     <div className="space-y-6 pb-12">
       <PageHeader
         title="Teacher Exchanges & Slot Swaps"
-        description="Side-by-side faculty schedule comparisons, mutual peer consent verification, before-and-after schedule diffs, and conflict-free commitment."
+        description="Review faculty exchange requests. Applying an exchange is unavailable until peer consent and date-specific timetable exceptions are supported."
         breadcrumbs={[{ label: "Academic Operations" }, { label: "Teacher Exchanges" }]}
         badge={
           <Badge variant="warning" dot>
@@ -230,27 +231,27 @@ export default function ClassExchangesPage() {
 
         <Card className="p-4.5 bg-gradient-to-br from-emerald-50/30 via-white/95 to-white/90 backdrop-blur-xl border border-slate-200/70 shadow-xs hover:shadow-md rounded-3xl min-h-[120px] transition-all duration-200 hover:-translate-y-0.5">
           <span className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider block">
-            Approved & Committed Swaps
+            Approved Requests
           </span>
           <div className="flex items-baseline gap-2 mt-2">
             <span className="text-2xl font-bold font-mono text-emerald-600">{approvedCount}</span>
-            <span className="text-[11px] text-emerald-700/80 font-medium">Synchronized</span>
+            <span className="text-[11px] text-emerald-700/80 font-medium">Recorded</span>
           </div>
           <div className="mt-2 text-[10.5px] font-semibold text-emerald-700 bg-emerald-50/80 px-2 py-0.5 rounded-full inline-block border border-emerald-200/60 shadow-2xs">
-            Database Locked
+            Legacy approvals; verify timetable separately
           </div>
         </Card>
 
         <Card className="p-4.5 bg-gradient-to-br from-blue-50/30 via-white/95 to-white/90 backdrop-blur-xl border border-slate-200/70 shadow-xs hover:shadow-md rounded-3xl min-h-[120px] transition-all duration-200 hover:-translate-y-0.5">
           <span className="text-[11px] font-semibold text-blue-700 uppercase tracking-wider block">
-            Peer Consensus Rate
+            Peer Consent Recorded
           </span>
           <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-2xl font-bold font-mono text-blue-600">100%</span>
-            <span className="text-[11px] text-blue-700/80 font-medium">Verified</span>
+            <span className="text-2xl font-bold font-mono text-blue-600">{peerAcceptedCount}</span>
+            <span className="text-[11px] text-blue-700/80 font-medium">of {requests.length}</span>
           </div>
           <div className="mt-2 text-[10.5px] font-semibold text-blue-700 bg-blue-50/80 px-2 py-0.5 rounded-full inline-block border border-blue-200/60 shadow-2xs">
-            Zero Discrepancies
+            From stored request records
           </div>
         </Card>
       </div>
@@ -265,10 +266,10 @@ export default function ClassExchangesPage() {
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-900">
-                  Propose Teacher Exchange with Pre-Flight Diff
+                  Propose Teacher Exchange
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Compare schedules side-by-side, check mutual slot viability, and submit for peer & dean sign-off.
+                  Select two real sessions and a date. This records a request; an exchange cannot be applied yet.
                 </p>
               </div>
             </div>
@@ -292,15 +293,18 @@ export default function ClassExchangesPage() {
                 </span>
 
                 <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-slate-600">Faculty Instructor</label>
+                  <label htmlFor="exchange-requester-faculty" className="text-[11px] font-medium text-slate-600">Faculty Instructor</label>
                   <select
+                    id="exchange-requester-faculty"
                     value={requesterFacultyId}
                     onChange={(e) => {
                       setRequesterFacultyId(e.target.value);
+                      setRequesterSessionId("");
                       setPreflightStatus({ checked: false, valid: true, message: "" });
                     }}
                     className="w-full h-8 rounded border border-slate-200 px-2 text-xs bg-white text-slate-800"
                   >
+                    <option value="">Choose faculty</option>
                     {faculty.map((f) => (
                       <option key={f.id} value={f.id}>
                         {f.name} ({f.departmentId})
@@ -310,8 +314,9 @@ export default function ClassExchangesPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-slate-600">Session to Give Up</label>
+                  <label htmlFor="exchange-requester-session" className="text-[11px] font-medium text-slate-600">Session to Give Up</label>
                   <select
+                    id="exchange-requester-session"
                     value={requesterSessionId}
                     onChange={(e) => {
                       setRequesterSessionId(e.target.value);
@@ -319,9 +324,8 @@ export default function ClassExchangesPage() {
                     }}
                     className="w-full h-8 rounded border border-slate-200 px-2 text-xs bg-white text-slate-800"
                   >
-                    <option value="SESS-CS301-MON">CS-301: Data Structures (Mon 09:00 - 10:30 AM)</option>
-                    <option value="SESS-CS401-WED">CS-401: Distributed Systems (Wed 10:00 - 11:30 AM)</option>
-                    <option value="SESS-ME202-WED">ME-202: Fluid Mechanics (Wed 02:00 - 03:30 PM)</option>
+                    <option value="">Choose session</option>
+                    {sessions.filter(item => item.facultyId === requesterFacultyId && item.status !== "cancelled").map(item => <option key={item.id} value={item.id}>{sessionLabel(item.id)}</option>)}
                   </select>
                 </div>
               </div>
@@ -334,15 +338,18 @@ export default function ClassExchangesPage() {
                 </span>
 
                 <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-slate-600">Colleague to Swap With</label>
+                  <label htmlFor="exchange-target-faculty" className="text-[11px] font-medium text-slate-600">Colleague to Swap With</label>
                   <select
+                    id="exchange-target-faculty"
                     value={targetFacultyId}
                     onChange={(e) => {
                       setTargetFacultyId(e.target.value);
+                      setTargetSessionId("");
                       setPreflightStatus({ checked: false, valid: true, message: "" });
                     }}
                     className="w-full h-8 rounded border border-slate-200 px-2 text-xs bg-white text-slate-800"
                   >
+                    <option value="">Choose colleague</option>
                     {faculty.map((f) => (
                       <option key={f.id} value={f.id}>
                         {f.name} ({f.departmentId})
@@ -352,8 +359,9 @@ export default function ClassExchangesPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-slate-600">Session to Receive</label>
+                  <label htmlFor="exchange-target-session" className="text-[11px] font-medium text-slate-600">Session to Receive</label>
                   <select
+                    id="exchange-target-session"
                     value={targetSessionId}
                     onChange={(e) => {
                       setTargetSessionId(e.target.value);
@@ -361,9 +369,8 @@ export default function ClassExchangesPage() {
                     }}
                     className="w-full h-8 rounded border border-slate-200 px-2 text-xs bg-white text-slate-800"
                   >
-                    <option value="SESS-MATH202-FRI">MATH-202: Multivariable Calc (Fri 10:00 - 11:30 AM)</option>
-                    <option value="SESS-ECE305-MON">ECE-305: Embedded Systems (Mon 02:00 - 03:30 PM)</option>
-                    <option value="SESS-ENG210-THU">ENG-210: Technical Communication (Thu 10:00 - 11:30 AM)</option>
+                    <option value="">Choose session</option>
+                    {sessions.filter(item => item.facultyId === targetFacultyId && item.status !== "cancelled").map(item => <option key={item.id} value={item.id}>{sessionLabel(item.id)}</option>)}
                   </select>
                 </div>
               </div>
@@ -371,19 +378,21 @@ export default function ClassExchangesPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700">Target Date</label>
+                <label htmlFor="exchange-date" className="text-xs font-semibold text-slate-700">Target Date</label>
                 <input
+                  id="exchange-date"
                   type="date"
                   value={exchangeDate}
-                  onChange={(e) => setExchangeDate(e.target.value)}
+                  onChange={(e) => { setExchangeDate(e.target.value); setPreflightStatus({ checked: false, valid: true, message: "" }); }}
                   className="w-full h-8 rounded border border-slate-200 px-2 text-xs bg-white"
                   required
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700">Reason for Swap</label>
+                <label htmlFor="exchange-reason" className="text-xs font-semibold text-slate-700">Reason for Swap</label>
                 <input
+                  id="exchange-reason"
                   type="text"
                   value={exchangeReason}
                   onChange={(e) => setExchangeReason(e.target.value)}
@@ -404,7 +413,7 @@ export default function ClassExchangesPage() {
                 className="gap-1.5 text-xs"
               >
                 <ShieldCheck className="h-3.5 w-3.5 text-blue-600" />
-                <span>Run Pre-Flight Clash Verification</span>
+                <span>Check Request Details</span>
               </Button>
 
               {preflightStatus.checked && (
@@ -525,7 +534,7 @@ export default function ClassExchangesPage() {
                       : req.status === "pending_dean"
                       ? "Pending Dean Review"
                       : req.status === "approved"
-                      ? "Approved & Committed"
+                      ? "Approved request · application unverified"
                       : "Rejected"}
                   </Badge>
                 </div>
@@ -544,9 +553,7 @@ export default function ClassExchangesPage() {
                         <span className="font-medium text-slate-900">{reqFac?.name}</span>
                         <div className="text-[11px] text-slate-500">{req.requesterSessionId}</div>
                       </div>
-                      <Badge variant="neutral" size="sm" className="font-mono text-[10px]">
-                        Slot 1 (Mon 09:00 AM)
-                      </Badge>
+                      <Badge variant="neutral" size="sm" className="font-mono text-[10px]">{sessionLabel(req.requesterSessionId)}</Badge>
                     </div>
 
                     <div className="flex items-center justify-between bg-white p-2 rounded border border-slate-200">
@@ -554,9 +561,7 @@ export default function ClassExchangesPage() {
                         <span className="font-medium text-slate-900">{tgtFac?.name}</span>
                         <div className="text-[11px] text-slate-500">{req.targetSessionId}</div>
                       </div>
-                      <Badge variant="neutral" size="sm" className="font-mono text-[10px]">
-                        Slot 2 (Fri 10:00 AM)
-                      </Badge>
+                      <Badge variant="neutral" size="sm" className="font-mono text-[10px]">{sessionLabel(req.targetSessionId)}</Badge>
                     </div>
                   </div>
                 </div>
@@ -564,7 +569,7 @@ export default function ClassExchangesPage() {
                 {/* AFTER SWAP CARD */}
                 <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-200/80 space-y-2">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 block">
-                    After Swap (Proposed Schedule Diff)
+                    Proposed exchange · not applied
                   </span>
                   <div className="space-y-1.5 text-xs text-slate-700">
                     <div className="flex items-center justify-between bg-white p-2 rounded border border-blue-200 shadow-2xs">
@@ -572,9 +577,7 @@ export default function ClassExchangesPage() {
                         <span className="font-medium text-slate-900">{tgtFac?.name}</span>
                         <div className="text-[11px] text-blue-600 font-medium">Takes over {req.requesterSessionId}</div>
                       </div>
-                      <Badge variant="info" size="sm" className="font-mono text-[10px]">
-                        Slot 1 (Mon 09:00 AM)
-                      </Badge>
+                      <Badge variant="info" size="sm" className="font-mono text-[10px]">{sessionLabel(req.requesterSessionId)}</Badge>
                     </div>
 
                     <div className="flex items-center justify-between bg-white p-2 rounded border border-blue-200 shadow-2xs">
@@ -582,9 +585,7 @@ export default function ClassExchangesPage() {
                         <span className="font-medium text-slate-900">{reqFac?.name}</span>
                         <div className="text-[11px] text-blue-600 font-medium">Takes over {req.targetSessionId}</div>
                       </div>
-                      <Badge variant="info" size="sm" className="font-mono text-[10px]">
-                        Slot 2 (Fri 10:00 AM)
-                      </Badge>
+                      <Badge variant="info" size="sm" className="font-mono text-[10px]">{sessionLabel(req.targetSessionId)}</Badge>
                     </div>
                   </div>
                 </div>
@@ -592,9 +593,9 @@ export default function ClassExchangesPage() {
 
               {/* Bottom Verification & Approval Bar */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-1 border-t border-slate-100">
-                <div className="text-[11px] text-emerald-700 flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                  <span>Pre-flight checks passed: 0 room clashes, 0 student overlaps, faculty limits preserved</span>
+                <div className="text-[11px] text-amber-700 flex items-center gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                  <span>Peer consent and date-specific conflict checks are required before applying.</span>
                 </div>
 
                 {req.status !== "approved" && req.status !== "rejected" && (
@@ -607,15 +608,6 @@ export default function ClassExchangesPage() {
                     >
                       <X className="h-3 w-3 mr-1" />
                       Reject
-                    </Button>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => handleApprove(req)}
-                      className="h-7 text-xs gap-1"
-                    >
-                      <Check className="h-3 w-3" />
-                      <span>{req.status === "pending_hod" ? "Sign Off (HOD)" : "Approve (Dean)"}</span>
                     </Button>
                   </div>
                 )}

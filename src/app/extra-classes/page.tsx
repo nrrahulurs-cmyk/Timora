@@ -1,586 +1,68 @@
 "use client";
-
 import * as React from "react";
-import { PageHeader } from "@/components/ui/page-header";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { CalendarPlus, Search, CheckCircle2, XCircle, ArrowRight, LoaderCircle } from "lucide-react";
+import { WorkspaceHeader } from "@/components/layout/workspace-header";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Plus,
-  CalendarPlus,
-  Clock,
-  MapPin,
-  User,
-  CheckCircle2,
-  AlertTriangle,
-  XCircle,
-  Search,
-  Filter,
-  Check,
-  X,
-  Sparkles,
-  Info,
-  Building2,
-  Users,
-} from "lucide-react";
 import { useToast } from "@/components/feedback/use-toast";
+import { useAuth } from "@/lib/auth/auth-context";
 import { schedulingRepository } from "@/lib/repository/scheduling-repository";
-import { searchEligibleRooms } from "@/lib/scheduling/constraint-engine";
-import type { ExtraClassRequest, Classroom, Subject, StudentSection, FacultyMember } from "@/types/domain";
+import { prepareExtraClass } from "@/lib/scheduling/extra-class";
+import type { SynapseCollegeDataset, ExtraClassRequest } from "@/types/domain";
 
 export default function ExtraClassesPage() {
-  const { toast } = useToast();
-
-  const [requests, setRequests] = React.useState<ExtraClassRequest[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [statusFilter, setStatusFilter] = React.useState<string>("all");
-
-  // Propose & Feasibility Finder State
-  const [showProposePanel, setShowProposePanel] = React.useState(false);
-  const [selectedSubject, setSelectedSubject] = React.useState("SUB-CS401");
-  const [selectedSection, setSelectedSection] = React.useState("SEC-CSE-S5-A");
-  const [selectedDate, setSelectedDate] = React.useState("2026-10-24");
-  const [selectedSlotTime, setSelectedSlotTime] = React.useState("10:00 - 11:30 AM");
-  const [reasonInput, setReasonInput] = React.useState("Mid-term exam preparation and syllabus catch-up");
-  const [selectedRoom, setSelectedRoom] = React.useState("");
-
-  // Feasible Alternatives
-  const [searchingAlternatives, setSearchingAlternatives] = React.useState(false);
-  const [feasibleRooms, setFeasibleRooms] = React.useState<Classroom[]>([]);
-  const [hasSearched, setHasSearched] = React.useState(false);
-
-  // Entities for lookup
-  const [subjects, setSubjects] = React.useState<Subject[]>([]);
-  const [sections, setSections] = React.useState<StudentSection[]>([]);
-  const [faculty, setFaculty] = React.useState<FacultyMember[]>([]);
-  const [classrooms, setClassrooms] = React.useState<Classroom[]>([]);
-
-  const loadData = React.useCallback(async () => {
-    setLoading(true);
-    const [allReqs, allSubs, allSecs, allFac, allRooms] = await Promise.all([
-      schedulingRepository.getExtraClassRequests(),
-      schedulingRepository.getSubjects(),
-      schedulingRepository.getSections(),
-      schedulingRepository.getFaculty(),
-      schedulingRepository.getClassrooms(),
-    ]);
-    setRequests(allReqs);
-    setSubjects(allSubs);
-    setSections(allSecs);
-    setFaculty(allFac);
-    setClassrooms(allRooms);
-    setLoading(false);
-  }, []);
-
-  React.useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  // Handle Search Feasible Rooms
-  const handleSearchAlternatives = async () => {
-    setSearchingAlternatives(true);
-    setHasSearched(true);
-
-    const dataset = await schedulingRepository.getDataset();
-    const sec = dataset.sections.find((s) => s.id === selectedSection);
-    const sub = dataset.subjects.find((s) => s.id === selectedSubject);
-    const slot = dataset.timeSlots[0];
-    if (!sec || !sub) {
-      setSearchingAlternatives(false);
-      return;
-    }
-
-    // Search eligible classrooms with capacity & equipment
-    const eligible = searchEligibleRooms(sub, sec, slot, dataset);
-
-    // Filter out rooms booked on this date/time in reservations
-    const available = eligible.filter((r) => {
-      const isReserved = dataset.reservations.some(
-        (res) =>
-          res.classroomId === r.id &&
-          res.date === selectedDate &&
-          res.status === "approved"
-      );
-      return !isReserved;
-    });
-
-    setFeasibleRooms(available);
-    if (available.length > 0 && !selectedRoom) {
-      setSelectedRoom(available[0].id);
-    }
-    setSearchingAlternatives(false);
-  };
-
-  // Handle Propose Extra Class
-  const handleProposeClass = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedRoom) {
-      toast({
-        title: "Facility Required",
-        description: "Please select an available room from the pre-flight alternatives list.",
-        variant: "destructive",
-      });
-      return;
-    }
-
+  const { user, role } = useAuth(); const { toast } = useToast();
+  const [data, setData] = React.useState<SynapseCollegeDataset | null>(null);
+  const [error, setError] = React.useState(""); const [loading, setLoading] = React.useState(true);
+  const [open, setOpen] = React.useState(false); const [filter, setFilter] = React.useState("all"); const [busy, setBusy] = React.useState(false);
+  const [assignmentId, setAssignmentId] = React.useState(""); const [date, setDate] = React.useState(() => new Date().toLocaleDateString("en-CA"));
+  const [slotId, setSlotId] = React.useState(""); const [roomId, setRoomId] = React.useState(""); const [reason, setReason] = React.useState("");
+  const [available, setAvailable] = React.useState<string[] | null>(null);
+  const load = React.useCallback(async () => { setLoading(true); setError(""); try { setData(await schedulingRepository.getDataset()); } catch(error) { setError(error instanceof Error ? error.message : "Could not load extra classes."); } finally { setLoading(false); } }, []);
+  React.useEffect(() => { void load(); const reload = () => { void load(); }; window.addEventListener("timora:data-changed", reload); return () => window.removeEventListener("timora:data-changed", reload); }, [load]);
+  const assignments = data?.teachingAssignments.filter(item => role !== "faculty_instructor" || data.faculty.find(faculty => faculty.id === item.facultyId)?.userId === user?.id) || [];
+  const assignment = assignments.find(item => item.id === assignmentId);
+  const weekday = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" }) : "";
+  const slots = data?.timeSlots.filter(item => item.dayOfWeek === weekday) || [];
+  function invalidate() { setAvailable(null); setRoomId(""); }
+  async function search() {
+    if (!assignment || !slotId) { setError("Choose a teaching assignment, date and time slot first."); return; }
+    setBusy(true); setError("");
     try {
-      const newReq = await schedulingRepository.createExtraClassRequest({
-        facultyId: "FAC-VANCE",
-        subjectId: selectedSubject,
-        sectionId: selectedSection,
-        classroomId: selectedRoom,
-        timeSlotId: "SLOT-SAT-1",
-        scheduledDate: selectedDate,
-        reason: reasonInput,
-        status: "pending_hod",
-      });
-
-      toast({
-        title: "Extra Class Proposal Submitted",
-        description: `Request ${newReq.id} lodged for HOD sign-off. Verified: 0 student collisions, 0 faculty clashes.`,
-        variant: "success",
-      });
-
-      setShowProposePanel(false);
-      setHasSearched(false);
-      loadData();
-    } catch (err: any) {
-      toast({
-        title: "Proposal Failed",
-        description: err.message || "Failed to submit extra class request.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Handle Approval Workflow
-  const handleApprove = async (req: ExtraClassRequest) => {
-    if (req.status === "pending_hod") {
-      // HOD approves -> moves to Dean
-      req.status = "pending_dean";
-      req.reviewedBy = "HOD Turing";
-      req.reviewedAt = new Date().toISOString();
-      toast({
-        title: "HOD Endorsement Granted",
-        description: `Request ${req.id} forwarded to Academic Dean for final executive approval.`,
-        variant: "success",
-      });
-    } else if (req.status === "pending_dean") {
-      // Dean approves -> confirmed & locked
-      await schedulingRepository.approveExtraClassRequest(req.id, "Dean Vance");
-      toast({
-        title: "Extra Class Confirmed & Published",
-        description: `Request ${req.id} finalized. Slot and facility locked into active timetable.`,
-        variant: "success",
-      });
-    }
-    loadData();
-  };
-
-  // Handle Rejection
-  const handleReject = async (req: ExtraClassRequest) => {
-    await schedulingRepository.rejectExtraClassRequest(req.id, "Admin Vance");
-    toast({
-      title: "Request Rejected",
-      description: `Extra class ${req.id} was rejected and marked archived.`,
-      variant: "destructive",
-    });
-    loadData();
-  };
-
-  // Filtered requests
-  const filteredRequests = requests.filter((r) => {
-    if (statusFilter === "all") return true;
-    return r.status === statusFilter;
-  });
-
-  const pendingHodCount = requests.filter((r) => r.status === "pending_hod").length;
-  const pendingDeanCount = requests.filter((r) => r.status === "pending_dean").length;
-  const approvedCount = requests.filter((r) => r.status === "approved").length;
-
-  return (
-    <div className="space-y-6 pb-12">
-      <PageHeader
-        title="Extra Classes & Tutorial Management"
-        description="Schedule, verify feasibility, and manage multi-stage sign-offs for supplementary curriculum lectures, makeup sessions, and exam tutorials."
-        breadcrumbs={[{ label: "Academic Operations" }, { label: "Extra Classes" }]}
-        actions={
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => {
-              setShowProposePanel(!showProposePanel);
-              if (!showProposePanel) handleSearchAlternatives();
-            }}
-            className="gap-1.5"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>{showProposePanel ? "Close Propose Panel" : "Propose Extra Class"}</span>
-          </Button>
-        }
-      />
-
-      {/* KPI Summary Cards (Glassmorphic Minimalism) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-        <Card className="p-4.5 bg-gradient-to-br from-indigo-50/30 via-white/95 to-white/90 backdrop-blur-xl border border-slate-200/70 shadow-xs hover:shadow-md rounded-3xl min-h-[120px] transition-all duration-200 hover:-translate-y-0.5">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
-            Total Requests
-          </span>
-          <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-2xl font-bold font-mono text-slate-900">{requests.length}</span>
-            <span className="text-[11px] text-slate-400 font-medium">Lodged</span>
-          </div>
-          <div className="mt-2 text-[10.5px] font-semibold text-slate-600 bg-slate-100/90 px-2 py-0.5 rounded-full inline-block border border-slate-200/60 shadow-2xs">
-            Academic Schedule
-          </div>
-        </Card>
-
-        <Card className="p-4.5 bg-gradient-to-br from-amber-50/30 via-white/95 to-white/90 backdrop-blur-xl border border-slate-200/70 shadow-xs hover:shadow-md rounded-3xl min-h-[120px] transition-all duration-200 hover:-translate-y-0.5">
-          <span className="text-[11px] font-semibold text-amber-700 uppercase tracking-wider block">
-            Pending HOD Review
-          </span>
-          <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-2xl font-bold font-mono text-amber-600">{pendingHodCount}</span>
-            <span className="text-[11px] text-amber-700/80 font-medium">Stage 1</span>
-          </div>
-          <div className="mt-2 text-[10.5px] font-semibold text-amber-700 bg-amber-50/80 px-2 py-0.5 rounded-full inline-block border border-amber-200/60 shadow-2xs">
-            Department Signoff
-          </div>
-        </Card>
-
-        <Card className="p-4.5 bg-gradient-to-br from-blue-50/30 via-white/95 to-white/90 backdrop-blur-xl border border-slate-200/70 shadow-xs hover:shadow-md rounded-3xl min-h-[120px] transition-all duration-200 hover:-translate-y-0.5">
-          <span className="text-[11px] font-semibold text-blue-700 uppercase tracking-wider block">
-            Pending Dean Approval
-          </span>
-          <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-2xl font-bold font-mono text-blue-600">{pendingDeanCount}</span>
-            <span className="text-[11px] text-blue-700/80 font-medium">Stage 2</span>
-          </div>
-          <div className="mt-2 text-[10.5px] font-semibold text-blue-700 bg-blue-50/80 px-2 py-0.5 rounded-full inline-block border border-blue-200/60 shadow-2xs">
-            Dean Governance
-          </div>
-        </Card>
-
-        <Card className="p-4.5 bg-gradient-to-br from-emerald-50/30 via-white/95 to-white/90 backdrop-blur-xl border border-slate-200/70 shadow-xs hover:shadow-md rounded-3xl min-h-[120px] transition-all duration-200 hover:-translate-y-0.5">
-          <span className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider block">
-            Approved & Booked
-          </span>
-          <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-2xl font-bold font-mono text-emerald-600">{approvedCount}</span>
-            <span className="text-[11px] text-emerald-700/80 font-medium">Active</span>
-          </div>
-          <div className="mt-2 text-[10.5px] font-semibold text-emerald-700 bg-emerald-50/80 px-2 py-0.5 rounded-full inline-block border border-emerald-200/60 shadow-2xs">
-            Timetable Integrated
-          </div>
-        </Card>
-      </div>
-
-      {/* Interactive Propose & Feasibility Finder Drawer / Panel */}
-      {showProposePanel && (
-        <Card className="p-5 border-blue-200 bg-gradient-to-br from-blue-50/40 via-white to-indigo-50/20 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-blue-100 pb-3">
-            <div className="flex items-center gap-2">
-              <div className="h-7 w-7 rounded-lg bg-[rgb(var(--color-primary))] text-white flex items-center justify-center">
-                <Sparkles className="h-4 w-4" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">
-                  Propose Extra Class with Feasibility Pre-Flight
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Search conflict-free room alternatives, verify faculty & student cohort availability.
-                </p>
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowProposePanel(false)}
-              className="h-7 text-xs"
-            >
-              Cancel
-            </Button>
-          </div>
-
-          <form onSubmit={handleProposeClass} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700">Course / Subject</label>
-                <select
-                  value={selectedSubject}
-                  onChange={(e) => setSelectedSubject(e.target.value)}
-                  className="w-full h-8.5 rounded-md border border-slate-200 px-2.5 text-xs bg-white text-slate-800 focus:ring-2 focus:ring-[rgb(var(--color-focus-ring))] outline-none"
-                >
-                  {subjects.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.code}: {s.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700">Student Section Cohort</label>
-                <select
-                  value={selectedSection}
-                  onChange={(e) => setSelectedSection(e.target.value)}
-                  className="w-full h-8.5 rounded-md border border-slate-200 px-2.5 text-xs bg-white text-slate-800 focus:ring-2 focus:ring-[rgb(var(--color-focus-ring))] outline-none"
-                >
-                  {sections.map((sec) => (
-                    <option key={sec.id} value={sec.id}>
-                      {sec.name} ({sec.studentCount} students)
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700">Target Date</label>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="w-full h-8.5 rounded-md border border-slate-200 px-2.5 text-xs bg-white text-slate-800 focus:ring-2 focus:ring-[rgb(var(--color-focus-ring))] outline-none"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700">Preferred Time Slot</label>
-                <select
-                  value={selectedSlotTime}
-                  onChange={(e) => setSelectedSlotTime(e.target.value)}
-                  className="w-full h-8.5 rounded-md border border-slate-200 px-2.5 text-xs bg-white text-slate-800 focus:ring-2 focus:ring-[rgb(var(--color-focus-ring))] outline-none"
-                >
-                  <option value="09:00 - 10:30 AM">09:00 - 10:30 AM (Slot 1)</option>
-                  <option value="10:00 - 11:30 AM">10:00 - 11:30 AM (Slot 2)</option>
-                  <option value="02:00 - 03:30 PM">02:00 - 03:30 PM (Slot 3)</option>
-                  <option value="04:00 - 05:30 PM">04:00 - 05:30 PM (Slot 4)</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Academic Justification</label>
-              <input
-                type="text"
-                value={reasonInput}
-                onChange={(e) => setReasonInput(e.target.value)}
-                placeholder="e.g. Mid-term exam revision tutorial, makeup for holiday disruption"
-                className="w-full h-8.5 rounded-md border border-slate-200 px-2.5 text-xs bg-white text-slate-800 focus:ring-2 focus:ring-[rgb(var(--color-focus-ring))] outline-none"
-                required
-              />
-            </div>
-
-            {/* Feasibility Scan Action */}
-            <div className="flex items-center justify-between pt-1">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleSearchAlternatives}
-                disabled={searchingAlternatives}
-                className="text-xs gap-1.5"
-              >
-                <Search className="h-3.5 w-3.5" />
-                {searchingAlternatives ? "Checking Constraint Engine..." : "Search Feasible Rooms & Slots"}
-              </Button>
-
-              <span className="text-[11px] text-slate-500">
-                Verifies: Room capacity, lab suitability, faculty calendar & cohort schedule.
-              </span>
-            </div>
-
-            {/* Candidate Alternatives List */}
-            {hasSearched && (
-              <div className="mt-3 p-3 bg-white rounded-lg border border-slate-200 space-y-2">
-                <span className="text-xs font-semibold text-slate-800 block">
-                  Feasible Classrooms ({feasibleRooms.length} available with zero clashes):
-                </span>
-                {feasibleRooms.length === 0 ? (
-                  <div className="text-xs text-amber-700 p-2 bg-amber-50 rounded border border-amber-200">
-                    ⚠️ No classrooms match both capacity and non-clashing criteria on this date/slot. Try an alternative time slot.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {feasibleRooms.map((room) => (
-                      <div
-                        key={room.id}
-                        onClick={() => setSelectedRoom(room.id)}
-                        className={`p-2.5 rounded-md border text-xs cursor-pointer transition-all ${
-                          selectedRoom === room.id
-                            ? "border-[rgb(var(--color-primary))] bg-blue-50/60 ring-2 ring-[rgb(var(--color-focus-ring))]"
-                            : "border-slate-200 hover:border-slate-300 bg-slate-50/40"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between font-semibold text-slate-900">
-                          <span>{room.code}</span>
-                          <span className="text-[10px] text-emerald-600 font-mono">✓ Free</span>
-                        </div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">
-                          {room.building} • {room.capacity} Seats ({room.type})
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-              <Button
-                type="submit"
-                variant="default"
-                size="sm"
-                disabled={!selectedRoom}
-                className="gap-1.5"
-              >
-                <CalendarPlus className="h-3.5 w-3.5" />
-                <span>Submit Extra Class Proposal</span>
-              </Button>
-            </div>
-          </form>
-        </Card>
-      )}
-
-      {/* Filter Bar */}
-      <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-        <div className="flex items-center gap-1.5">
-          <Filter className="h-3.5 w-3.5 text-slate-400" />
-          <span className="text-xs font-semibold text-slate-700">Filter Status:</span>
-          {["all", "pending_hod", "pending_dean", "approved", "rejected"].map((st) => (
-            <button
-              key={st}
-              onClick={() => setStatusFilter(st)}
-              className={`text-xs px-2.5 py-1 rounded-md transition-colors ${
-                statusFilter === st
-                  ? "bg-slate-900 text-white font-medium"
-                  : "text-slate-600 hover:bg-slate-100"
-              }`}
-            >
-              {st === "all"
-                ? "All Requests"
-                : st === "pending_hod"
-                ? "Pending HOD"
-                : st === "pending_dean"
-                ? "Pending Dean"
-                : st === "approved"
-                ? "Approved"
-                : "Rejected"}
-            </button>
-          ))}
-        </div>
-        <span className="text-xs text-slate-500 font-mono">
-          Showing {filteredRequests.length} of {requests.length} records
-        </span>
-      </div>
-
-      {/* Request Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {filteredRequests.map((req) => {
-          const sub = subjects.find((s) => s.id === req.subjectId);
-          const fac = faculty.find((f) => f.id === req.facultyId);
-          const sec = sections.find((s) => s.id === req.sectionId);
-          const room = classrooms.find((c) => c.id === req.classroomId);
-
-          return (
-            <Card
-              key={req.id}
-              className="p-4 bg-white border-slate-200 hover:border-slate-300 transition-all shadow-2xs space-y-3"
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-sm text-[rgb(var(--color-primary))]">
-                      {sub?.code || req.subjectId}
-                    </span>
-                    <span className="text-xs font-medium text-slate-800">
-                      {sub?.title || "Curriculum Session"}
-                    </span>
-                  </div>
-                  <span className="text-xs text-slate-500 block mt-0.5">
-                    {req.reason}
-                  </span>
-                </div>
-
-                <Badge
-                  variant={
-                    req.status === "approved"
-                      ? "success"
-                      : req.status === "rejected"
-                      ? "error"
-                      : "warning"
-                  }
-                  dot
-                  size="sm"
-                >
-                  {req.status === "pending_hod"
-                    ? "Stage 1: HOD Sign-off"
-                    : req.status === "pending_dean"
-                    ? "Stage 2: Dean Approval"
-                    : req.status === "approved"
-                    ? "Approved & Booked"
-                    : "Rejected"}
-                </Badge>
-              </div>
-
-              {/* Resource Verification Metadata */}
-              <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                <div className="flex items-center gap-1.5">
-                  <User className="h-3 w-3 text-slate-400" />
-                  <span className="truncate">{fac?.name || req.facultyId}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Users className="h-3 w-3 text-slate-400" />
-                  <span>{sec?.name || req.sectionId}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Building2 className="h-3 w-3 text-slate-400" />
-                  <span>{room ? `${room.code} (${room.capacity} seats)` : req.classroomId}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Clock className="h-3 w-3 text-slate-400" />
-                  <span className="font-mono">{req.scheduledDate}</span>
-                </div>
-              </div>
-
-              {/* Pre-flight Verification Badge */}
-              <div className="flex items-center justify-between text-[11px] pt-1">
-                <span className="text-emerald-700 flex items-center gap-1">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                  Pre-flight: 0 room clashes, 0 student overlaps
-                </span>
-
-                {/* Workflow Actions */}
-                {req.status !== "approved" && req.status !== "rejected" && (
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleReject(req)}
-                      className="h-7 text-xs text-red-600 hover:bg-red-50 border-red-200"
-                    >
-                      <X className="h-3 w-3 mr-1" />
-                      Reject
-                    </Button>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => handleApprove(req)}
-                      className="h-7 text-xs gap-1"
-                    >
-                      <Check className="h-3 w-3" />
-                      <span>
-                        {req.status === "pending_hod" ? "Sign Off (HOD)" : "Approve (Dean)"}
-                      </span>
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </Card>
-          );
-        })}
-      </div>
-    </div>
-  );
+      const fresh = await schedulingRepository.getDataset(); setData(fresh);
+      const matches = fresh.classrooms.filter(room => { try { return prepareExtraClass(fresh, { ...assignment, classroomId: room.id, timeSlotId: slotId, scheduledDate: date, reason: "Check extra-class feasibility" }).isValid; } catch { return false; } }).map(room => room.id);
+      setAvailable(matches); setRoomId("");
+    } catch(error) { setError(error instanceof Error ? error.message : "Availability could not be checked."); }
+    finally { setBusy(false); }
+  }
+  async function submit(event: React.FormEvent) {
+    event.preventDefault(); if (!assignment || !roomId) return; setBusy(true); setError("");
+    try {
+      const request = await schedulingRepository.createExtraClassRequest({ facultyId: assignment.facultyId, subjectId: assignment.subjectId, sectionId: assignment.sectionId, classroomId: roomId, timeSlotId: slotId, scheduledDate: date, reason, status: "pending_hod" });
+      const persisted = await schedulingRepository.getExtraClassRequests();
+      if (!persisted.some(item => item.id === request.id)) throw new Error("Could not verify the saved request. Refresh before retrying.");
+      toast({ title: "Extra-class request submitted", description: `${request.id} is awaiting department review. The room has not been reserved.`, variant: "success" }); setOpen(false); invalidate(); await load();
+    } catch(error) { setError(error instanceof Error ? error.message : "The request was not saved."); }
+    finally { setBusy(false); }
+  }
+  async function review(request: ExtraClassRequest, reject = false) {
+    setBusy(true); setError("");
+    try {
+      const result = reject ? await schedulingRepository.rejectExtraClassRequest(request.id, user?.fullName || "Reviewer") : request.status === "pending_hod" ? await schedulingRepository.advanceExtraClassRequest(request.id, user?.fullName || "Reviewer") : await schedulingRepository.approveExtraClassRequest(request.id, user?.fullName || "Reviewer");
+      if (!result) throw new Error("The request changed or no longer exists. Refresh and try again.");
+      await load(); toast({ title: reject ? "Request rejected" : request.status === "pending_hod" ? "Forwarded for final review" : "Extra class added to the draft", description: "The updated status has been saved.", variant: "success" });
+    } catch(error) { setError(error instanceof Error ? error.message : "The review was not saved."); }
+    finally { setBusy(false); }
+  }
+  const canPropose = ["academic_admin", "dean", "timetable_coordinator", "faculty_instructor"].includes(role);
+  const canReview = ["academic_admin", "dean", "timetable_coordinator", "department_head"].includes(role);
+  const requests = data?.extraClassRequests.filter(request => filter === "all" || request.status === filter) || [];
+  const inputClass = "mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs text-slate-800";
+  return <div className="space-y-6 pb-8"><WorkspaceHeader title="Extra classes" subtitle="Find a feasible time, request department review, and add approved classes to the draft timetable." actions={canPropose && <Button className="rounded-full" onClick={() => setOpen(value => !value)}><CalendarPlus size={15} className="mr-2" />Request extra class</Button>} />
+    {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"><p className="max-w-[75ch]">{error}</p><Button size="sm" variant="outline" onClick={() => void load()}>Reload records</Button></div>}
+    {open && <form onSubmit={submit} className="space-y-5 rounded-2xl border border-slate-200 bg-white/90 p-5 sm:p-6"><div><h2 className="text-lg font-semibold">Plan an extra class</h2><p className="mt-1 text-xs leading-relaxed text-secondary">Availability includes the instructor, students, room capacity, equipment and date-specific reservations. It will be checked again at final approval.</p></div><div className="grid gap-4 sm:grid-cols-2"><label className="text-xs font-medium">Teaching assignment<select required value={assignmentId} className={inputClass} onChange={event => { setAssignmentId(event.target.value); invalidate(); }}><option value="">Choose course, section and instructor</option>{assignments.map(item => <option key={item.id} value={item.id}>{data?.subjects.find(subject => subject.id === item.subjectId)?.code} · {data?.sections.find(section => section.id === item.sectionId)?.sectionCode} · {data?.faculty.find(faculty => faculty.id === item.facultyId)?.name}</option>)}</select></label><label className="text-xs font-medium">Date<input required type="date" value={date} className={inputClass} onChange={event => { setDate(event.target.value); setSlotId(""); invalidate(); }} /></label><label className="text-xs font-medium">Time slot<select required value={slotId} className={inputClass} onChange={event => { setSlotId(event.target.value); invalidate(); }}><option value="">Choose an institutional time slot</option>{slots.map(slot => <option key={slot.id} value={slot.id}>{slot.dayOfWeek} · {slot.startTime}–{slot.endTime}</option>)}</select></label><label className="text-xs font-medium">Reason<input required minLength={5} maxLength={500} value={reason} onChange={event => setReason(event.target.value)} placeholder="What does this class help students complete?" className={inputClass} /></label></div><Button variant="outline" type="button" disabled={busy || !assignment || !slotId} onClick={() => void search()} className="rounded-full"><Search size={14} className="mr-2" />{busy ? "Checking…" : "Find feasible rooms"}</Button>
+    {available !== null && <div className="border-t pt-4"><p className="mb-3 text-xs text-secondary">{available.length ? `${available.length} rooms satisfy the checked constraints. Choose one to request.` : "No room satisfies all constraints for this assignment and time. Try another time slot."}</p><div className="grid gap-2 sm:grid-cols-3">{available.map(id => { const room = data?.classrooms.find(item => item.id === id); return <label key={id} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-xs ${roomId === id ? "border-[#b7442d] bg-[#fff5ee]" : "border-slate-200"}`}><input type="radio" name="room" value={id} checked={roomId === id} onChange={() => setRoomId(id)} /><span><strong className="block">{room?.code}</strong><span className="mt-1 block text-secondary">{room?.capacity} seats · {room?.type}</span></span></label>; })}</div></div>}
+    <div className="flex justify-end gap-2 border-t pt-4"><Button variant="outline" type="button" disabled={busy} onClick={() => setOpen(false)}>Cancel</Button><Button disabled={busy || !roomId || reason.trim().length < 5} type="submit">Submit for department review<ArrowRight size={14} className="ml-2" /></Button></div></form>}
+    <div className="flex flex-wrap gap-2" role="group" aria-label="Filter requests">{["all", "pending_hod", "pending_dean", "approved", "rejected"].map(status => <button key={status} aria-pressed={filter === status} onClick={() => setFilter(status)} className={`rounded-full border px-4 py-2 text-xs ${filter === status ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-600"}`}>{({ all: "All requests", pending_hod: "Department review", pending_dean: "Final review", approved: "Approved", rejected: "Rejected" })[status as "all"]}</button>)}</div>
+    {loading && !data ? <p role="status" className="flex items-center gap-2 p-8 text-sm text-secondary"><LoaderCircle size={16} className="animate-spin" />Loading requests…</p> : <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white/90">{requests.length ? requests.map(request => { const slot = data?.timeSlots.find(item => item.id === request.timeSlotId); const pending = ["pending_hod", "pending_dean"].includes(request.status); return <article key={request.id} className="flex flex-col justify-between gap-4 border-b border-slate-100 p-5 last:border-0 xl:flex-row xl:items-center"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold">{data?.subjects.find(item => item.id === request.subjectId)?.code} · {data?.sections.find(item => item.id === request.sectionId)?.sectionCode}</h3><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] capitalize">{request.status.replaceAll("_", " ")}</span></div><p className="mt-2 text-xs text-secondary">{request.scheduledDate} · {slot?.startTime}–{slot?.endTime} · {data?.classrooms.find(item => item.id === request.classroomId)?.code} · {data?.faculty.find(item => item.id === request.facultyId)?.name}</p><p className="mt-2 text-xs leading-relaxed">{request.reason}</p><p className="mt-2 text-[10px] text-secondary">{request.id}</p></div>{canReview && pending && <div className="flex shrink-0 gap-2"><Button variant="outline" size="sm" disabled={busy} onClick={() => void review(request,true)}><XCircle size={14} className="mr-1.5" />Reject</Button>{(request.status === "pending_hod" || role !== "department_head") && <Button size="sm" disabled={busy} onClick={() => void review(request)}><CheckCircle2 size={14} className="mr-1.5" />{request.status === "pending_hod" ? "Forward for final review" : "Approve & add class"}</Button>}</div>}</article>; }) : <p className="p-10 text-center text-sm text-secondary">No requests in this stage.</p>}</div>}
+  </div>;
 }

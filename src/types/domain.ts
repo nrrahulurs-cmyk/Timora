@@ -259,6 +259,7 @@ export interface ConflictRecord {
 // ── 11. Schedule Versions & Change History ──────────────────────────────────
 
 export interface ScheduleVersion {
+  sessionSnapshot?: TimetableSession[];
   id: string;
   academicTermId: string;
   versionNumber: string; // e.g. "v2.4"

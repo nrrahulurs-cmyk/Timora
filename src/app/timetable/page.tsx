@@ -3,6 +3,7 @@
 import * as React from "react";
 import { ChevronRight, GraduationCap, Building, Layers } from "lucide-react";
 import { useToast } from "@/components/feedback/use-toast";
+import { Button } from "@/components/ui/button";
 import { schedulingRepository } from "@/lib/repository/scheduling-repository";
 import { SYNAPSE_SEED_DATA } from "@/data/fixtures";
 import type {
@@ -30,7 +31,10 @@ import {
   downloadFile,
   type ExportMetadata,
 } from "@/lib/export/timetable-export-service";
-import { getWeekScheduleDetails } from "@/lib/utils/date-utils";
+import { getCurrentAcademicWeekOffset, getWeekScheduleDetails } from "@/lib/utils/date-utils";
+import { allocation } from "@/lib/scheduling/plan";
+import { useAuth } from "@/lib/auth/auth-context";
+import { ImportDialog } from "@/components/timetable/import-dialog";
 
 interface StagedMove {
   sessionId: string;
@@ -43,10 +47,13 @@ interface StagedMove {
 
 export default function TimetableStudioPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
 
   // Primary dataset loaded from repository
-  const [dataset, setDataset] = React.useState<SynapseCollegeDataset>(SYNAPSE_SEED_DATA);
-  const [loading, setLoading] = React.useState(false);
+  const [dataset, setDataset] = React.useState<SynapseCollegeDataset | null>(null);
+  const activeDataset = dataset ?? SYNAPSE_SEED_DATA;
+  const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
   const [isSaving, setIsSaving] = React.useState(false);
 
   // View state: Grid vs Table
@@ -64,6 +71,7 @@ export default function TimetableStudioPage() {
     searchQuery: "",
     weekOffset: 0,
   });
+  const [today, setToday] = React.useState<Date | null>(null);
 
   // Staged moves & undo history (Never present uncommitted change as established assignment)
   const [stagedMoves, setStagedMoves] = React.useState<Record<string, StagedMove>>({});
@@ -75,28 +83,39 @@ export default function TimetableStudioPage() {
   const [publishDialogOpen, setPublishDialogOpen] = React.useState(false);
   const [exportDialogOpen, setExportDialogOpen] = React.useState(false);
   const [newSessionOpen, setNewSessionOpen] = React.useState(false);
+  const [importOpen, setImportOpen] = React.useState(false);
   const [isExporting, setIsExporting] = React.useState(false);
 
   // Load latest dataset from repository
   const loadData = React.useCallback(async () => {
     try {
-      setLoading(true);
+      setLoadError(null);
       const data = await schedulingRepository.getDataset();
       setDataset(data);
     } catch (err) {
       console.error("Failed to load scheduling dataset:", err);
+      setLoadError("Timetable data could not be loaded. Check the connection and try again.");
     } finally {
       setLoading(false);
     }
   }, []);
 
   React.useEffect(() => {
+    const currentDate = new Date();
+    setToday(currentDate);
+    setFilters((current) => ({ ...current, weekOffset: getCurrentAcademicWeekOffset(currentDate) }));
+  }, []);
+
+  React.useEffect(() => {
     loadData();
+    const reload = () => { void loadData(); };
+    window.addEventListener("timora:data-changed", reload);
+    return () => window.removeEventListener("timora:data-changed", reload);
   }, [loadData]);
 
   // Compute enriched sessions with staged moves, foreign keys, and conflict linkages
   const allEnrichedSessions: EnrichedSession[] = React.useMemo(() => {
-    return dataset.timetableSessions.map((session) => {
+    return activeDataset.timetableSessions.map((session) => {
       const staged = stagedMoves[session.id];
       const effectiveSession: TimetableSession = staged
         ? {
@@ -107,13 +126,13 @@ export default function TimetableStudioPage() {
           }
         : session;
 
-      const subject = dataset.subjects.find((s) => s.id === session.subjectId);
-      const classroom = dataset.classrooms.find((c) => c.id === effectiveSession.classroomId);
-      const faculty = dataset.faculty.find((f) => f.id === effectiveSession.facultyId);
-      const section = dataset.sections.find((s) => s.id === session.sectionId);
+      const subject = activeDataset.subjects.find((s) => s.id === session.subjectId);
+      const classroom = activeDataset.classrooms.find((c) => c.id === effectiveSession.classroomId);
+      const faculty = activeDataset.faculty.find((f) => f.id === effectiveSession.facultyId);
+      const section = activeDataset.sections.find((s) => s.id === session.sectionId);
 
       // Link to known conflict records
-      const conflict = dataset.conflicts.find(
+      const conflict = activeDataset.conflicts.find(
         (c) =>
           c.status === "active" &&
           (c.sessionIds.includes(session.id) ||
@@ -135,7 +154,7 @@ export default function TimetableStudioPage() {
           : undefined,
       };
     });
-  }, [dataset, stagedMoves]);
+  }, [activeDataset, stagedMoves]);
 
   // Filter enriched sessions
   const filteredSessions = React.useMemo(() => {
@@ -196,13 +215,13 @@ export default function TimetableStudioPage() {
 
   // Active conflicts count
   const activeConflicts = React.useMemo(() => {
-    return dataset.conflicts.filter((c) => c.status === "active");
-  }, [dataset.conflicts]);
+    return activeDataset.conflicts.filter((c) => c.status === "active");
+  }, [activeDataset.conflicts]);
 
   // ── Staged Editing Handlers ───────────────────────────────────────────────
 
   const handleStageMove = (sessionId: string, targetTimeSlotId: string, targetClassroomId?: string) => {
-    const session = dataset.timetableSessions.find((s) => s.id === sessionId);
+    const session = activeDataset.timetableSessions.find((s) => s.id === sessionId);
     if (!session) return;
 
     setStagedMoves((prev) => ({
@@ -257,24 +276,18 @@ export default function TimetableStudioPage() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      // Apply staged moves into the dataset clone
-      const updatedSessions = dataset.timetableSessions.map((s) => {
-        const staged = stagedMoves[s.id];
-        if (!staged) return s;
-        return {
-          ...s,
-          timeSlotId: staged.timeSlotId,
-          classroomId: staged.classroomId || s.classroomId,
-        };
+      const result = await schedulingRepository.saveTimetableChanges({
+        reason: "Saved reviewed changes in Timetable Studio", inserts: [],
+        updates: Object.values(stagedMoves).map((move) => {
+          const session = activeDataset.timetableSessions.find((item) => item.id === move.sessionId)!;
+          return { id: session.id, expected: allocation(session), changes: {
+            timeSlotId: move.timeSlotId, classroomId: move.classroomId || session.classroomId,
+            facultyId: move.facultyId || session.facultyId, status: "moved" as const,
+          } };
+        }),
       });
-
-      // Update dataset in state and repository
-      const updatedDataset: SynapseCollegeDataset = {
-        ...dataset,
-        timetableSessions: updatedSessions,
-      };
-
-      setDataset(updatedDataset);
+      if (!result.success) throw new Error(result.message);
+      setDataset(await schedulingRepository.getDataset());
       setStagedMoves({});
       setUndoStack([]);
 
@@ -286,7 +299,7 @@ export default function TimetableStudioPage() {
     } catch (err) {
       toast({
         title: "Save Failed",
-        description: "An unexpected error occurred while saving timetable changes.",
+        description: err instanceof Error ? err.message : "Changes could not be saved. Try again.",
         variant: "destructive",
       });
     } finally {
@@ -314,21 +327,23 @@ export default function TimetableStudioPage() {
     }
   };
 
-  const handlePublishConfirm = () => {
-    toast({
-      title: "Schedule v2.4 Published Live",
-      description: "Fall 2026 timetable locked and broadcast to student & faculty portals.",
-      variant: "success",
-    });
+  const handlePublishConfirm = async () => {
+    if (Object.keys(stagedMoves).length) throw new Error("Save or discard staged changes before publication.");
+    const draft = activeDataset.scheduleVersions.find((version) => version.status === "draft");
+    if (!draft) throw new Error("There is no draft version to publish.");
+    const result = await schedulingRepository.publishScheduleVersion(draft.versionNumber, user?.fullName || "Institution member");
+    if (!result.success) throw new Error(result.message);
+    await loadData();
+    toast({ title: "Schedule published", description: result.message, variant: "success" });
   };
 
   // Weekly timetable download handler for PDF, CSV, and Excel (.xlsx)
   const handleExport = async (format: "pdf" | "csv" | "excel") => {
     setIsExporting(true);
     try {
-      const activeDept = dataset.departments.find((d) => d.id === filters.departmentId);
-      const activeSec = dataset.sections.find((s) => s.id === filters.sectionId);
-      const weekInfo = getWeekScheduleDetails(filters.weekOffset);
+      const activeDept = activeDataset.departments.find((d) => d.id === filters.departmentId);
+      const activeSec = activeDataset.sections.find((s) => s.id === filters.sectionId);
+      const weekInfo = getWeekScheduleDetails(filters.weekOffset, today || new Date());
       const weekLabel = `Week ${weekInfo.weekNumber}`;
 
       const metadata: ExportMetadata = {
@@ -345,12 +360,12 @@ export default function TimetableStudioPage() {
 
       const exportRows = buildExportRows(
         filteredSessions.map((f) => f.session),
-        dataset.subjects,
-        dataset.classrooms,
-        dataset.faculty,
-        dataset.sections,
-        dataset.timeSlots,
-        dataset.conflicts
+        activeDataset.subjects,
+        activeDataset.classrooms,
+        activeDataset.faculty,
+        activeDataset.sections,
+        activeDataset.timeSlots,
+        activeDataset.conflicts
       );
 
       const baseName = `Timora_Timetable_${weekLabel.replace(/\s+/g, "_")}${
@@ -398,15 +413,33 @@ export default function TimetableStudioPage() {
     }
   };
 
-  const selectedDepartment = dataset.departments.find((d) => d.id === filters.departmentId);
-  const selectedSection = dataset.sections.find((s) => s.id === filters.sectionId);
+  const selectedDepartment = activeDataset.departments.find((d) => d.id === filters.departmentId);
+  const selectedSection = activeDataset.sections.find((s) => s.id === filters.sectionId);
+
+  if (loading) {
+    return <div className="p-12 text-center text-sm text-slate-500" role="status">Loading timetable records…</div>;
+  }
+
+  if (loadError || !dataset) {
+    return (
+      <div className="m-4 rounded-2xl border border-rose-200 bg-white p-10 text-center" role="alert">
+        <p className="text-sm font-semibold text-slate-900">Timetable unavailable</p>
+        <p className="mt-1 text-xs text-slate-500">{loadError || "No timetable dataset was returned."}</p>
+        <Button variant="outline" size="sm" onClick={loadData} className="mt-4">Retry</Button>
+      </div>
+    );
+  }
+
+  if (!today) {
+    return <div className="p-12 text-center text-sm text-slate-500" role="status">Preparing the current academic week…</div>;
+  }
 
   return (
     <div className="space-y-4 pb-14">
       {/* ── Studio Header: Title, Versions, Clashes, Grouped Actions ──────── */}
       <StudioHeader
-        scheduleVersion="v2.4-preview"
-        isDraft={true}
+        scheduleVersion={activeDataset.scheduleVersions.find(version => version.status === "draft")?.versionNumber || "No draft"}
+        isDraft={activeDataset.scheduleVersions.some(version => version.status === "draft")}
         conflictCount={activeConflicts.length}
         stagedChangesCount={Object.keys(stagedMoves).length}
         onUndo={handleUndo}
@@ -414,19 +447,22 @@ export default function TimetableStudioPage() {
         onPublish={() => setPublishDialogOpen(true)}
         onReset={handleReset}
         onNewSession={() => setNewSessionOpen(true)}
+        onImport={user && ["academic_admin", "dean", "timetable_coordinator"].includes(user.role) ? () => setImportOpen(true) : undefined}
         isSaving={isSaving}
       />
 
       {/* ── Studio Toolbar: Filters, Week Navigator & View Switch ────────── */}
+      <ImportDialog open={importOpen} onOpenChange={setImportOpen} onImported={() => void loadData()} />
       <StudioToolbar
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         filters={filters}
+        today={today}
         onFilterChange={setFilters}
-        departments={dataset.departments}
-        sections={dataset.sections}
-        classrooms={dataset.classrooms}
-        faculty={dataset.faculty}
+        departments={activeDataset.departments}
+        sections={activeDataset.sections}
+        classrooms={activeDataset.classrooms}
+        faculty={activeDataset.faculty}
         totalFilteredCount={filteredSessions.length}
         onExport={handleExport}
         onOpenExport={() => setExportDialogOpen(true)}
@@ -436,7 +472,7 @@ export default function TimetableStudioPage() {
       {/* ── Main View Area: Grid View or Table View ──────────────────────── */}
       {viewMode === "grid" ? (
         <GridView
-          timeSlots={dataset.timeSlots}
+          timeSlots={activeDataset.timeSlots}
           sessions={filteredSessions}
           selectedSessionId={selectedSession?.session.id}
           onSelectSession={(enr) => setSelectedSession(enr)}
@@ -451,11 +487,12 @@ export default function TimetableStudioPage() {
           }}
           includeSaturday={true}
           weekOffset={filters.weekOffset}
+          today={today}
         />
       ) : (
         <TableView
           sessions={filteredSessions}
-          timeSlots={dataset.timeSlots}
+          timeSlots={activeDataset.timeSlots}
           weekOffset={filters.weekOffset}
           onSelectSession={(enr) => setSelectedSession(enr)}
           onMoveSession={(enr) => setMovingSession(enr)}
@@ -498,12 +535,12 @@ export default function TimetableStudioPage() {
         onExport={handleExport}
         cohortLabel={
           filters.sectionId !== "all"
-            ? `Cohort: ${dataset.sections.find((s) => s.id === filters.sectionId)?.semester || 5}th Sem (${
-                dataset.sections.find((s) => s.id === filters.sectionId)?.sectionCode || "Sec-B"
+            ? `Cohort: ${activeDataset.sections.find((s) => s.id === filters.sectionId)?.semester || 5}th Sem (${
+                activeDataset.sections.find((s) => s.id === filters.sectionId)?.sectionCode || "Sec-B"
               })`
             : "All Cohorts"
         }
-        weekLabel={`Week ${9 + filters.weekOffset} (${getWeekScheduleDetails(filters.weekOffset).formattedRange})`}
+        weekLabel={`Week ${getWeekScheduleDetails(filters.weekOffset, today).weekNumber} (${getWeekScheduleDetails(filters.weekOffset, today).formattedRange})`}
         isExporting={isExporting}
       />
 

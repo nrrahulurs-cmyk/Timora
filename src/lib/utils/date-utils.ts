@@ -30,11 +30,22 @@ const DAYS_OF_WEEK: DayOfWeek[] = [
 const SHORT_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 /**
- * Calculates accurate academic week dates based on Fall 2026 academic calendar.
- * Anchor: Fall 2026 Week 9 begins on Monday, October 19, 2026.
- * Anchor today: Tuesday, October 20, 2026.
+ * Calculates academic week dates based on the Fall 2026 calendar.
+ * Anchor: Week 9 begins on Monday, October 19, 2026.
  */
-export function getWeekScheduleDetails(weekOffset: number = 0): WeekScheduleDetails {
+export function getCurrentAcademicWeekOffset(today: Date): number {
+  const dayNumber = (date: Date) => Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86_400_000);
+  const todayIndex = dayNumber(today);
+  const todayWeekday = new Date(todayIndex * 86_400_000).getUTCDay();
+  const todayMonday = todayIndex - ((todayWeekday + 6) % 7);
+  const anchorMonday = Math.floor(Date.UTC(2026, 9, 19) / 86_400_000);
+  return Math.floor((todayMonday - anchorMonday) / 7);
+}
+
+export function getWeekScheduleDetails(
+  weekOffset: number,
+  today: Date
+): WeekScheduleDetails {
   const weekNumber = 9 + weekOffset;
 
   // Anchor Monday: October 19, 2026 (Month is 0-indexed, so 9 = October)
@@ -50,11 +61,9 @@ export function getWeekScheduleDetails(weekOffset: number = 0): WeekScheduleDeta
     const year = dayDate.getFullYear();
     const dateString = `${monthName} ${dayNum}, ${year}`;
 
-    // Anchor reference today is Tuesday Oct 20, 2026
-    const isAnchorToday =
-      dayDate.getFullYear() === 2026 &&
-      dayDate.getMonth() === 9 &&
-      dayDate.getDate() === 20;
+    const isCurrentDay = dayDate.getFullYear() === today.getFullYear()
+      && dayDate.getMonth() === today.getMonth()
+      && dayDate.getDate() === today.getDate();
 
     return {
       day: dayName,
@@ -63,7 +72,7 @@ export function getWeekScheduleDetails(weekOffset: number = 0): WeekScheduleDeta
       monthName,
       year,
       dateString,
-      isToday: isAnchorToday,
+      isToday: isCurrentDay,
     };
   });
 

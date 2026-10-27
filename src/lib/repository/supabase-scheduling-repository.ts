@@ -1,11 +1,11 @@
 /**
- * SYNAPSE OS — Supabase Production Scheduling Repository
- * Fully implemented PostgreSQL adapter for SchedulingRepository.
- * Provides fresh pre-write constraint validation, optimistic concurrency locking,
- * immutable audit logging, and reversible conflict resolution.
+ * Timora Supabase scheduling adapter.
+ * Reads use the authenticated client. Consequential live writes remain limited
+ * until the required transactional RPCs and scoped database policies are deployed.
  */
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient as createAuthenticatedBrowserClient } from "@/lib/supabase/client";
 import type {
   SchedulingRepository,
   KpiMetrics,
@@ -15,12 +15,9 @@ import type {
   RoomRecord,
 } from "./scheduling-repository";
 import {
-  STABLE_KPI_METRICS,
-  STABLE_CHART_WEEKLY,
-  STABLE_ATTENTION_ITEMS,
-  STABLE_ACTIVITY_LOG,
   SEED_ROOMS,
 } from "./scheduling-repository";
+import { calculateScheduleAnalytics } from "@/lib/analytics/metrics";
 import type {
   SynapseCollegeDataset,
   Department,
@@ -77,10 +74,26 @@ import {
 import { validateSession, type HardViolation } from "../scheduling/constraint-engine";
 
 export class SupabaseSchedulingRepository implements SchedulingRepository {
+  async saveTimetableChanges(plan: import("@/lib/scheduling/plan").SchedulePlan): Promise<import("@/lib/scheduling/plan").SchedulePlanResult> {
+    this.assertAuthorized(["academic_admin", "dean", "timetable_coordinator"], "save timetable changes");
+    const { previewSchedulePlan } = await import("@/lib/scheduling/plan");
+    const preview = previewSchedulePlan(await this.getDataset(), plan);
+    if (!preview.isValid) return { success: false, message: preview.errors.join("\n"), affectedSessionIds: [] };
+    const { data, error } = await this.client.rpc("commit_timetable_plan", { p_plan: preview.plan });
+    if (error) throw new Error("Schedule changes were not saved. The atomic schedule service must be installed and your account must have write permission.");
+    return data;
+  }
+
+  async advanceExtraClassRequest(id: string, reviewedBy: string): Promise<boolean> {
+    this.assertAuthorized(["academic_admin", "dean", "timetable_coordinator", "department_head"], "review extra classes");
+    const { data, error } = await this.client.from("extra_class_requests").update({ status: "pending_dean", reviewed_by: reviewedBy, reviewed_at: new Date().toISOString() }).eq("id", id).eq("status", "pending_hod").select("id");
+    if (error || !data?.length) throw new Error("The request could not advance. Refresh its current status and try again.");
+    return true;
+  }
   private client: SupabaseClient;
-  private currentRole: UserRole = "academic_admin";
-  private currentUserId: string = "USER-ADMIN";
-  private currentUserName: string = "Chief Administrator";
+  private currentRole: UserRole = "student_viewer";
+  private currentUserId: string = "";
+  private currentUserName: string = "Unauthenticated";
 
   // In-memory undo stack for atomic session restorations
   private undoSnapshots: Map<
@@ -102,12 +115,7 @@ export class SupabaseSchedulingRepository implements SchedulingRepository {
     if (client) {
       this.client = client;
     } else {
-      const url =
-        process.env.NEXT_PUBLIC_SUPABASE_URL || "https://rmweukwohbxxdoohlmih.supabase.co";
-      const key =
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJtd2V1a3dvaGJ4eGRvb2hsbWloIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA1MDIzMTMsImV4cCI6MjEwNjA3ODMxM30.nEYeS17vINjhH_PHtjDYndjCYgAfq2PQci53qMVmMKg";
-      this.client = createClient(url, key);
+      this.client = createAuthenticatedBrowserClient();
     }
   }
 
@@ -173,6 +181,12 @@ export class SupabaseSchedulingRepository implements SchedulingRepository {
       this.client.from("extra_class_requests").select("*"),
       this.client.from("teacher_exchange_requests").select("*"),
     ]);
+
+    const queryResults = [terms, depts, users, fac, secs, subs, assigns, rooms, slots, sessions, res, confs, vers, hist, prog, extras, exchs];
+    const failedQuery = queryResults.find((result) => result.error);
+    if (failedQuery?.error) {
+      throw new DatabaseError("Failed to fetch the institutional scheduling dataset", failedQuery.error);
+    }
 
     return {
       institutionName: "Timora Institute of Technology",
@@ -1064,7 +1078,18 @@ export class SupabaseSchedulingRepository implements SchedulingRepository {
   async createTeacherExchangeRequest(
     data: Omit<TeacherExchangeRequest, "id" | "submittedAt">
   ): Promise<TeacherExchangeRequest> {
-    const id = `REQ-EXCH-${Date.now()}`;
+    this.assertAuthorized(["academic_admin", "timetable_coordinator", "dean", "department_head", "faculty_instructor"], "create teacher exchange request");
+    const dataset = await this.getDataset();
+    const first = dataset.timetableSessions.find(item => item.id === data.requesterSessionId && item.facultyId === data.requesterFacultyId && item.status !== "cancelled");
+    const second = dataset.timetableSessions.find(item => item.id === data.targetSessionId && item.facultyId === data.targetFacultyId && item.status !== "cancelled");
+    if (!first || !second || first.id === second.id || first.facultyId === second.facultyId) throw new Error("Choose two different active sessions belonging to the selected instructors.");
+    if (typeof data.reason !== "string" || data.reason.trim().length < 5 || data.reason.length > 500 || !/^\d{4}-\d{2}-\d{2}$/.test(data.date)) throw new Error("Enter a valid date and a reason between 5 and 500 characters.");
+    const requesterSlot = dataset.timeSlots.find(item => item.id === first.timeSlotId);
+    const targetSlot = dataset.timeSlots.find(item => item.id === second.timeSlotId);
+    const weekday = new Date(`${data.date}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
+    if (!requesterSlot || !targetSlot || requesterSlot.dayOfWeek !== weekday || first.academicTermId !== second.academicTermId || data.date < first.effectiveFrom || data.date > first.effectiveUntil) throw new Error("The date must be a scheduled occurrence of the requester session, and both sessions must belong to the same term.");
+    if (this.currentRole === "faculty_instructor" && !dataset.faculty.some(item => item.id === first.facultyId && item.userId === this.currentUserId)) throw new AuthorizationError(this.currentRole, "request exchange for another instructor");
+    const id = `REQ-EXCH-${crypto.randomUUID()}`;
     const submittedAt = new Date().toISOString();
 
     const newRow = {
@@ -1077,7 +1102,7 @@ export class SupabaseSchedulingRepository implements SchedulingRepository {
       reason: data.reason,
       status: "pending_hod",
       submitted_at: submittedAt,
-      is_peer_accepted: Boolean(data.isPeerAccepted),
+      is_peer_accepted: false,
     };
 
     const { data: created, error } = await this.client
@@ -1092,21 +1117,13 @@ export class SupabaseSchedulingRepository implements SchedulingRepository {
 
   async approveExtraClassRequest(id: string, reviewedBy: string): Promise<boolean> {
     this.assertAuthorized(
-      ["academic_admin", "timetable_coordinator", "dean", "department_head"],
+      ["academic_admin", "timetable_coordinator", "dean"],
       "Approve Extra Class Request"
     );
 
-    const { error } = await this.client
-      .from("extra_class_requests")
-      .update({
-        status: "approved",
-        reviewed_by: reviewedBy,
-        reviewed_at: new Date().toISOString(),
-      })
-      .eq("id", id);
-
-    if (error) throw new DatabaseError(`Failed to approve extra class ${id}`, error);
-    return true;
+    const { data, error } = await this.client.rpc("approve_extra_class", { p_request_id: id });
+    if (error || data?.success !== true) throw new Error("The extra class was not approved. The atomic approval service must be configured and must revalidate the timetable.");
+    return data.success;
   }
 
   async approveTeacherExchangeRequest(id: string, reviewedBy: string): Promise<boolean> {
@@ -1115,17 +1132,7 @@ export class SupabaseSchedulingRepository implements SchedulingRepository {
       "Approve Teacher Exchange Request"
     );
 
-    const { error } = await this.client
-      .from("teacher_exchange_requests")
-      .update({
-        status: "approved",
-        reviewed_by: reviewedBy,
-        reviewed_at: new Date().toISOString(),
-      })
-      .eq("id", id);
-
-    if (error) throw new DatabaseError(`Failed to approve teacher exchange ${id}`, error);
-    return true;
+    throw new Error("Exchange approval is unavailable until verified peer consent and atomic date-specific timetable updates are configured.");
   }
 
   async rejectExtraClassRequest(id: string, reviewedBy: string): Promise<boolean> {
@@ -1253,172 +1260,29 @@ export class SupabaseSchedulingRepository implements SchedulingRepository {
       "Publish Schedule Version"
     );
 
-    const conflicts = await this.getConflicts();
-    const activeConflicts = conflicts.filter((c) => c.status === "active");
-
-    // 1. Archive currently published versions in DB
-    await this.client
-      .from("schedule_versions")
-      .update({ status: "archived" })
-      .eq("status", "published");
-
-    // 2. Insert new published version
-    const newRow = {
-      academic_term_id: "TERM-FALL-2026",
-      version_number: versionNumber,
-      status: "published",
-      published_at: new Date().toISOString(),
-      published_by: publishedBy,
-      changes_summary: notes || `Production timetable ${versionNumber} released.`,
-      clash_count: activeConflicts.length,
-    };
-
-    const { data: created, error } = await this.client
-      .from("schedule_versions")
-      .insert(newRow)
-      .select()
-      .single();
-
-    if (error) throw new DatabaseError("Failed to publish schedule version", error);
-
-    // 3. Append to change history
-    await this.client.from("change_history_records").insert({
-      version_id: created.id,
-      entity_type: "session",
-      entity_id: created.id,
-      actor_id: this.currentUserId,
-      actor_name: publishedBy,
-      actor_role: this.currentRole,
-      action: `Published official schedule version ${versionNumber}`,
-      target_name: `Academic Timetable ${versionNumber}`,
-      category: "approval",
-    });
-
-    const mappedVersion: ScheduleVersion = {
-      id: created.id,
-      academicTermId: created.academic_term_id,
-      versionNumber: created.version_number,
-      status: created.status,
-      publishedAt: created.published_at,
-      publishedBy: created.published_by,
-      changesSummary: created.changes_summary,
-      clashCount: created.clash_count,
-    };
-
-    return {
-      success: true,
-      version: mappedVersion,
-      message: `Schedule version ${versionNumber} officially published live.`,
-      unresolvedConflicts: activeConflicts,
-    };
+    return { success: false, message: "Live publication is not enabled until atomic snapshots, constraint validation and database authorization are verified.", unresolvedConflicts: await this.getConflicts("active") };
   }
 
   async rollbackToVersion(
     versionId: string,
     actorName: string
   ): Promise<{ success: boolean; message: string; restoredVersion?: ScheduleVersion }> {
-    this.assertAuthorized(
-      ["academic_admin", "timetable_coordinator", "dean"],
-      "Rollback Schedule Version"
-    );
-
-    const versions = await this.getScheduleVersions();
-    const target = versions.find((v) => v.id === versionId || v.versionNumber === versionId);
-    if (!target) return { success: false, message: `Version ${versionId} not found in database.` };
-
-    // Archive current published and set target to published
-    await this.client
-      .from("schedule_versions")
-      .update({ status: "archived" })
-      .eq("status", "published");
-
-    await this.client
-      .from("schedule_versions")
-      .update({ status: "published" })
-      .eq("id", target.id);
-
-    // Audit log
-    await this.client.from("change_history_records").insert({
-      version_id: target.id,
-      entity_type: "session",
-      entity_id: target.id,
-      actor_id: this.currentUserId,
-      actor_name: actorName,
-      actor_role: this.currentRole,
-      action: `Rolled back timetable state to version ${target.versionNumber}`,
-      target_name: `Schedule ${target.versionNumber}`,
-      category: "modification",
-    });
-
-    target.status = "published";
-    return {
-      success: true,
-      message: `Successfully rolled back active schedule to ${target.versionNumber}.`,
-      restoredVersion: target,
-    };
+    this.assertAuthorized(["academic_admin", "timetable_coordinator", "dean"], "Rollback Schedule Version");
+    return { success: false, message: "Live rollback is not enabled until immutable session snapshots and atomic restoration are configured." };
   }
 
   // ── Dashboard Aggregates (Live Database Grounded) ──────────────────────────
 
   async getKpiMetrics(): Promise<KpiMetrics> {
-    const [sessions, conflicts, rooms, requests] = await Promise.all([
-      this.client.from("timetable_sessions").select("id, status"),
-      this.client.from("conflicts").select("id, type, status").eq("status", "active"),
-      this.client.from("classrooms").select("id, status"),
-      this.client.from("extra_class_requests").select("id, status").eq("status", "pending_hod"),
-    ]);
-
-    const activeConflicts = conflicts.data || [];
-    const activeRooms = rooms.data || [];
-    const pendingReqs = requests.data || [];
-
-    const roomClashes = activeConflicts.filter((c: any) => c.type === "room_clash").length;
-    const facClashes = activeConflicts.filter((c: any) => c.type === "faculty_overlap").length;
-    const criticalClashes = activeConflicts.filter((c: any) => c.severity === "critical").length;
-    const warningClashes = activeConflicts.filter((c: any) => c.severity === "warning").length;
-    const availableRoomCount = activeRooms.filter((r: any) => r.status === "Available").length;
-    const totalRoomCount = activeRooms.length > 0 ? activeRooms.length : 15;
-    const freeRooms = availableRoomCount > 0 ? availableRoomCount : 11;
-
-    return {
-      scheduledClasses: {
-        count: 1284,
-        total: 1318,
-        percentage: 97.4,
-        supportingText: "1,284 of 1,318 curriculum slots filled",
-      },
-      unresolvedConflicts: {
-        count: activeConflicts.length > 0 ? activeConflicts.length : 5,
-        roomClashes: roomClashes || 2,
-        facultyClashes: facClashes || 1,
-        supportingText: `${criticalClashes || 3} critical • ${warningClashes || 2} warnings`,
-      },
-      availableRooms: {
-        available: freeRooms,
-        total: totalRoomCount,
-        occupied: totalRoomCount - freeRooms,
-        supportingText: `${freeRooms} of ${totalRoomCount} facilities free this hour`,
-      },
-      roomUtilisation: {
-        rate: 86.2,
-        targetBaseline: 85.0,
-        supportingText: "1.2% above target baseline (85.0%)",
-      },
-      pendingApprovals: {
-        count: 7,
-        classExchanges: 4,
-        extraClasses: 3,
-        supportingText: "4 exchanges • 3 extra classes",
-      },
-    };
+    return calculateScheduleAnalytics(await this.getDataset()).kpiMetrics;
   }
 
   async getChartData(): Promise<ChartDataPoint[]> {
-    return STABLE_CHART_WEEKLY;
+    return calculateScheduleAnalytics(await this.getDataset()).chartData;
   }
 
   async getAttentionItems(): Promise<AttentionItem[]> {
-    return STABLE_ATTENTION_ITEMS;
+    return calculateScheduleAnalytics(await this.getDataset()).attentionItems;
   }
 
   async getActivityLog(): Promise<ActivityItem[]> {
@@ -1434,7 +1298,7 @@ export class SupabaseSchedulingRepository implements SchedulingRepository {
         category: h.category,
       }));
     }
-    return STABLE_ACTIVITY_LOG;
+    return [];
   }
 
   async getAvailableRooms(query?: string): Promise<RoomRecord[]> {

@@ -40,7 +40,7 @@ export default function RootLayout({
       className={`${plusJakartaSans.variable} ${inter.variable} ${jetbrainsMono.variable} h-full`}
       suppressHydrationWarning
     >
-      <body className="h-full antialiased overflow-hidden">
+      <body className="h-full antialiased overflow-x-hidden overflow-y-auto lg:overflow-hidden">
         <AuthProvider>
           <AppShell>{children}</AppShell>
         </AuthProvider>

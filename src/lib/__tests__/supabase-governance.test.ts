@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   mapAcademicTerm,
   mapDepartment,
@@ -228,7 +229,7 @@ describe("Phase 6: Role-Based Authorization & Governance Enforcement", () => {
   let repo: SupabaseSchedulingRepository;
 
   beforeEach(() => {
-    repo = new SupabaseSchedulingRepository();
+    repo = new SupabaseSchedulingRepository({} as SupabaseClient);
   });
 
   it("blocks student_viewer role from resolving conflicts", async () => {
@@ -261,8 +262,9 @@ describe("Phase 6: Role-Based Authorization & Governance Enforcement", () => {
   });
 });
 
-describe("Phase 6: Live Supabase Database Connectivity & Data Integrity", () => {
-  const repo = new SupabaseSchedulingRepository();
+describe.skipIf(process.env.TIMORA_RUN_LIVE_TESTS !== "true")("Phase 6: Live Supabase Database Connectivity & Data Integrity (explicit opt-in)", () => {
+  let repo: SupabaseSchedulingRepository;
+  beforeEach(() => { repo = new SupabaseSchedulingRepository(); });
 
   it("fetches academic terms from live Supabase database", async () => {
     const terms = await repo.getDataset();

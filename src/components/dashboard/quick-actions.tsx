@@ -31,8 +31,8 @@ export function QuickActions({
   onOpenScheduleExtraClass,
   onOpenAskSynapse,
   onOpenExportTimetable,
-  activeConflictsCount = 5,
-  availableRoomsCount = 11,
+  activeConflictsCount = 0,
+  availableRoomsCount = 0,
 }: QuickActionsProps) {
   const actions = [
     {
@@ -51,7 +51,7 @@ export function QuickActions({
     },
     {
       title: "Resolve Conflicts",
-      description: `${activeConflictsCount} pending clashes`,
+      description: `${activeConflictsCount} active clashes`,
       icon: AlertTriangle,
       badge: `${activeConflictsCount} Clashes`,
       badgeVariant: "error" as const,
@@ -59,9 +59,9 @@ export function QuickActions({
     },
     {
       title: "Find a Room",
-      description: `${availableRoomsCount} facilities vacant`,
+      description: `${availableRoomsCount} rooms marked available`,
       icon: Building2,
-      badge: `${availableRoomsCount} Free`,
+      badge: `${availableRoomsCount} Available`,
       badgeVariant: "success" as const,
       onClick: onOpenFindRoom,
     },

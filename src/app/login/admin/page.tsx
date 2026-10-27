@@ -6,13 +6,5 @@ export const metadata = {
 };
 
 export default function AdminLoginPage() {
-  return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <LoginForm
-        forcedRole="academic_admin"
-        portalTitle="Institutional Administrator Sign-In"
-        portalDescription="Governance, curriculum authorization, and university policy administration"
-      />
-    </div>
-  );
+  return <LoginForm forcedRole="academic_admin" portalTitle="Administrator access" />;
 }

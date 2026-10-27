@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { getWeekScheduleDetails } from "@/lib/utils/date-utils";
+import { getCurrentAcademicWeekOffset, getWeekScheduleDetails } from "@/lib/utils/date-utils";
 import type { Department, StudentSection, Classroom, FacultyMember } from "@/types/domain";
 
 export interface StudioFilters {
@@ -33,13 +33,14 @@ export interface StudioFilters {
   conflictStatus: "all" | "conflicted" | "clean";
   subjectType: string;
   searchQuery: string;
-  weekOffset: number; // 0 is current week
+  weekOffset: number; // Offset from the Fall 2026 calendar anchor week
 }
 
 interface StudioToolbarProps {
   viewMode: "grid" | "table";
   onViewModeChange: (mode: "grid" | "table") => void;
   filters: StudioFilters;
+  today?: Date;
   onFilterChange: (filters: StudioFilters) => void;
   departments: Department[];
   sections: StudentSection[];
@@ -55,6 +56,7 @@ export function StudioToolbar({
   viewMode,
   onViewModeChange,
   filters,
+  today,
   onFilterChange,
   departments,
   sections,
@@ -66,11 +68,13 @@ export function StudioToolbar({
   isExporting = false,
 }: StudioToolbarProps) {
   const [showAdvanced, setShowAdvanced] = React.useState(false);
+  const effectiveToday = today ?? new Date(2026, 9, 19);
 
   // Compute accurate week range using dedicated date utility
   const weekDetails = React.useMemo(() => {
-    return getWeekScheduleDetails(filters.weekOffset);
-  }, [filters.weekOffset]);
+    return getWeekScheduleDetails(filters.weekOffset, effectiveToday);
+  }, [filters.weekOffset, effectiveToday]);
+  const currentWeekOffset = getCurrentAcademicWeekOffset(effectiveToday);
 
   // Filter sections by department/semester
   const availableSections = React.useMemo(() => {
@@ -170,10 +174,10 @@ export function StudioToolbar({
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
 
-            {filters.weekOffset !== 0 && (
+            {filters.weekOffset !== currentWeekOffset && (
               <button
                 type="button"
-                onClick={() => onFilterChange({ ...filters, weekOffset: 0 })}
+                onClick={() => onFilterChange({ ...filters, weekOffset: currentWeekOffset })}
                 className="text-[10px] font-semibold text-[rgb(var(--color-primary))] px-2 py-0.5 bg-blue-50 hover:bg-blue-100 border border-blue-200/60 rounded-full ml-1 transition cursor-pointer"
                 title="Return to current week"
               >

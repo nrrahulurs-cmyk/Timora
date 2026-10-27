@@ -12,16 +12,12 @@ import {
 import { WorkspaceHeader } from "@/components/layout/workspace-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/feedback/use-toast";
 import { KpiRow } from "@/components/dashboard/kpi-row";
 import { AnalyticsChart } from "@/components/dashboard/analytics-chart";
 import { AttentionPanel } from "@/components/dashboard/attention-panel";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
 import { QuickActions } from "@/components/dashboard/quick-actions";
-import { FindRoomModal } from "@/components/dashboard/modals/find-room-modal";
-import { ScheduleExtraClassModal } from "@/components/dashboard/modals/schedule-extra-class-modal";
-import { ResolveConflictModal } from "@/components/dashboard/modals/resolve-conflict-modal";
 import { TimoWorkspaceModal } from "@/components/companion/timo-workspace-modal";
 import {
   schedulingRepository,
@@ -29,47 +25,49 @@ import {
   type ChartDataPoint,
   type AttentionItem,
   type ActivityItem,
-  STABLE_KPI_METRICS,
-  STABLE_CHART_WEEKLY,
-  STABLE_ATTENTION_ITEMS,
-  STABLE_ACTIVITY_LOG,
 } from "@/lib/repository/scheduling-repository";
+import type { SynapseCollegeDataset } from "@/types/domain";
+import { calculateScheduleAnalytics } from "@/lib/analytics/metrics";
+import { getCurrentAcademicWeekOffset, getWeekScheduleDetails } from "@/lib/utils/date-utils";
 import { Skeleton, CardSkeleton } from "@/components/feedback/states";
+import { validateSchedule } from "@/lib/scheduling/constraint-engine";
 
 export default function DashboardPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  // Repository data states initialized with stable demo baseline
-  const [loading, setLoading] = React.useState(false);
-  const [metrics, setMetrics] = React.useState<KpiMetrics>(STABLE_KPI_METRICS);
-  const [chartData, setChartData] = React.useState<ChartDataPoint[]>(STABLE_CHART_WEEKLY);
-  const [attentionItems, setAttentionItems] = React.useState<AttentionItem[]>(STABLE_ATTENTION_ITEMS);
-  const [activities, setActivities] = React.useState<ActivityItem[]>(STABLE_ACTIVITY_LOG);
+  // Render metrics only after the active repository returns them.
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [metrics, setMetrics] = React.useState<KpiMetrics | null>(null);
+  const [chartData, setChartData] = React.useState<ChartDataPoint[]>([]);
+  const [attentionItems, setAttentionItems] = React.useState<AttentionItem[]>([]);
+  const [activities, setActivities] = React.useState<ActivityItem[]>([]);
+  const [dashboardDataset, setDashboardDataset] = React.useState<SynapseCollegeDataset | null>(null);
   const [activityFilter, setActivityFilter] = React.useState("All");
 
-  // Interactive modal states
-  const [findRoomOpen, setFindRoomOpen] = React.useState(false);
-  const [extraClassOpen, setExtraClassOpen] = React.useState(false);
-  const [resolveModalOpen, setResolveModalOpen] = React.useState(false);
-  const [selectedAttentionItem, setSelectedAttentionItem] = React.useState<AttentionItem | null>(null);
   const [askSynapseOpen, setAskSynapseOpen] = React.useState(false);
-  const [publishDialogOpen, setPublishDialogOpen] = React.useState(false);
 
   // Load repository data
   const loadDashboardData = React.useCallback(async () => {
     try {
       setLoading(true);
-      const [m, c, att, act] = await Promise.all([
-        schedulingRepository.getKpiMetrics(),
-        schedulingRepository.getChartData("utilisation", "week"),
-        schedulingRepository.getAttentionItems(),
+      setError(null);
+      const [dataset, act] = await Promise.all([
+        schedulingRepository.getDataset(),
         schedulingRepository.getActivityLog(activityFilter),
       ]);
-      setMetrics(m);
-      setChartData(c);
-      setAttentionItems(att);
+      const now = new Date();
+      const weekStart = getWeekScheduleDetails(getCurrentAcademicWeekOffset(now), now).baseMonday;
+      const analytics = calculateScheduleAnalytics(dataset, weekStart);
+      setDashboardDataset(dataset);
+      setMetrics(analytics.kpiMetrics);
+      setChartData(analytics.chartData);
+      setAttentionItems(analytics.attentionItems);
       setActivities(act);
+    } catch (err) {
+      console.error("Failed to load dashboard data:", err);
+      setError("Dashboard data could not be loaded. Check the connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -77,56 +75,38 @@ export default function DashboardPage() {
 
   React.useEffect(() => {
     loadDashboardData();
+    const reload = () => { void loadDashboardData(); };
+    window.addEventListener("timora:data-changed", reload);
+    return () => window.removeEventListener("timora:data-changed", reload);
   }, [loadDashboardData]);
 
   // Handle activity filter change
-  const handleFilterChange = async (cat: string) => {
-    setActivityFilter(cat);
-    const filtered = await schedulingRepository.getActivityLog(cat);
-    setActivities(filtered);
-  };
+  const handleFilterChange = (cat: string) => setActivityFilter(cat);
 
-  // Handle attention item selection (opens clash resolver or route)
   const handleSelectAttentionItem = (item: AttentionItem) => {
-    if (item.type === "clash") {
-      setSelectedAttentionItem(item);
-      setResolveModalOpen(true);
-    } else {
-      router.push(item.targetUrl);
-    }
+    router.push(item.targetUrl);
   };
 
-  const handleConflictResolved = (id: string) => {
-    setAttentionItems((prev) => prev.filter((i) => i.id !== id));
-    if (metrics) {
-      setMetrics({
-        ...metrics,
-        unresolvedConflicts: {
-          ...metrics.unresolvedConflicts,
-          count: Math.max(0, metrics.unresolvedConflicts.count - 1),
-          supportingText: `${Math.max(0, metrics.unresolvedConflicts.count - 1)} active clashes remaining`,
-        },
+  const handleRunScan = async () => {
+    try {
+      const dataset = await schedulingRepository.getDataset();
+      const report = validateSchedule(dataset);
+      toast({
+        title: "Constraint Pre-flight Complete",
+        description: `Checked ${report.totalSessionsEvaluated} sessions; ${report.conflictedSessionsCount} have hard-constraint violations.`,
+        variant: report.isValid ? "success" : "info",
+      });
+    } catch (err) {
+      console.error("Schedule validation failed:", err);
+      toast({
+        title: "Pre-flight Scan Failed",
+        description: "Schedule data could not be validated. Try again when the connection is available.",
+        variant: "destructive",
       });
     }
   };
 
-  const handlePublishConfirm = () => {
-    toast({
-      title: "Schedule Published Successfully",
-      description: "Fall 2026 Academic Timetable is now locked and live for all university departments.",
-      variant: "success",
-    });
-  };
-
-  const handleRunScan = () => {
-    toast({
-      title: "Constraint Pre-Flight Completed",
-      description: "Zero fatal scheduling blocks detected. 3 minor clashes flagged in Attention Panel.",
-      variant: "info",
-    });
-  };
-
-  if (loading && !metrics) {
+  if (!metrics && loading) {
     return (
       <div className="space-y-6 pb-12">
         <div className="space-y-2">
@@ -142,16 +122,32 @@ export default function DashboardPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="space-y-6 pb-12">
+        <WorkspaceHeader section="Overview" title="Academic Operations Overview" />
+        <div role="alert" className="rounded-2xl border border-rose-200 bg-white p-10 text-center">
+          <AlertCircle className="mx-auto mb-3 h-7 w-7 text-rose-500" />
+          <p className="text-sm font-semibold text-slate-900">Dashboard unavailable</p>
+          <p className="mt-1 text-xs text-slate-500">{error}</p>
+          <Button variant="outline" size="sm" onClick={loadDashboardData} className="mt-4">Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!metrics) return null;
+
   return (
     <div className="space-y-6 pb-24">
       {/* ── A. Page Heading (Concise Workspace Header) ── */}
       <WorkspaceHeader
         section="Overview"
         title="Academic Operations Overview"
-        subtitle="Fall 2026 Academic Session • 97.4% curriculum allocated • 5 conflicts flagged • 11 rooms available"
+        subtitle={`${metrics.scheduledClasses.percentage}% of weekly room slots have active sessions • ${metrics.unresolvedConflicts.count} active conflicts • ${metrics.availableRooms.available} rooms marked available`}
         badge={
           <Badge variant="success" size="sm" dot className="font-semibold text-[11px] rounded-full px-2.5 py-0.5">
-            Fall 2026 • Draft v2.4
+            {dashboardDataset?.academicTerms.find(term => term.isCurrent)?.name || "Academic workspace"} · {dashboardDataset?.scheduleVersions.find(version => version.status === "draft")?.versionNumber || "No draft"}
           </Badge>
         }
         actions={
@@ -169,7 +165,7 @@ export default function DashboardPage() {
             <Button
               variant="default"
               size="sm"
-              onClick={() => setPublishDialogOpen(true)}
+              onClick={() => router.push("/history")}
               className="gap-1.5 text-xs h-8 rounded-full px-4 shadow-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white cursor-pointer"
             >
               <CalendarCheck className="h-3.5 w-3.5" />
@@ -184,12 +180,9 @@ export default function DashboardPage() {
         <KpiRow
           metrics={metrics}
           onScheduledClassesClick={() => router.push("/timetable")}
-          onConflictClick={() => {
-            setSelectedAttentionItem(attentionItems[0] || null);
-            setResolveModalOpen(true);
-          }}
+          onConflictClick={() => router.push("/conflicts")}
           onApprovalClick={() => router.push("/exchanges")}
-          onRoomClick={() => setFindRoomOpen(true)}
+          onRoomClick={() => router.push("/rooms")}
         />
       )}
 
@@ -197,7 +190,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
         {/* Left: Large Allocation & Utilisation Chart (2 cols) */}
         <div className="xl:col-span-2">
-          <AnalyticsChart data={chartData} />
+          {dashboardDataset && <AnalyticsChart data={chartData} dataset={dashboardDataset} />}
         </div>
 
         {/* Right: Requires Attention Panel (1 col) */}
@@ -229,57 +222,21 @@ export default function DashboardPage() {
             onOpenTimetableStudio={() => router.push("/timetable")}
             onOpenExportTimetable={() => router.push("/timetable")}
             onOpenResolveConflicts={() => {
-              setSelectedAttentionItem(attentionItems[0] || null);
-              setResolveModalOpen(true);
+              router.push("/conflicts");
             }}
-            onOpenFindRoom={() => setFindRoomOpen(true)}
-            onOpenScheduleExtraClass={() => setExtraClassOpen(true)}
+            onOpenFindRoom={() => router.push("/rooms")}
+            onOpenScheduleExtraClass={() => router.push("/extra-classes")}
             onOpenAskSynapse={() => setAskSynapseOpen(true)}
           />
         </div>
       </div>
 
       {/* ── Interactive Modals & Sheets ───────────────────────── */}
-      <FindRoomModal
-        open={findRoomOpen}
-        onOpenChange={setFindRoomOpen}
-        onSelectRoom={(room) => {
-          toast({
-            title: `Room ${room.code} selected`,
-            description: `${room.capacity} seats in ${room.building}. Ready for allocation.`,
-            variant: "info",
-          });
-        }}
-      />
-
-      <ScheduleExtraClassModal
-        open={extraClassOpen}
-        onOpenChange={setExtraClassOpen}
-        onScheduled={loadDashboardData}
-      />
-
-      <ResolveConflictModal
-        open={resolveModalOpen}
-        onOpenChange={setResolveModalOpen}
-        item={selectedAttentionItem}
-        onResolved={handleConflictResolved}
-      />
-
       <TimoWorkspaceModal
         open={askSynapseOpen}
         onOpenChange={setAskSynapseOpen}
       />
 
-      <ConfirmDialog
-        open={publishDialogOpen}
-        onOpenChange={setPublishDialogOpen}
-        title="Publish Fall 2026 Academic Timetable?"
-        description={`Publishing will lock room allocations and notify faculty, department heads, and students. There are currently ${metrics.unresolvedConflicts.count} unresolved room conflicts that will be flagged as pending.`}
-        confirmLabel="Confirm & Publish Timetable"
-        cancelLabel="Keep as Draft"
-        variant="warning"
-        onConfirm={handlePublishConfirm}
-      />
     </div>
   );
 }

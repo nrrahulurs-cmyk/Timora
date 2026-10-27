@@ -24,11 +24,11 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             "border-[rgb(var(--color-border-default))]",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--color-focus-ring))] focus-visible:border-[rgb(var(--color-primary))]",
             "disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-slate-50",
-            leftIcon && "pl-9",
-            rightIcon && "pr-9",
             error &&
               "border-[rgb(var(--color-error))] focus-visible:ring-[rgb(var(--color-error))] focus-visible:border-[rgb(var(--color-error))]",
-            className
+            className,
+            leftIcon && "pl-9",
+            rightIcon && "pr-9"
           )}
           ref={ref}
           {...props}

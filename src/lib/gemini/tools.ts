@@ -6,7 +6,7 @@
  */
 
 import { z } from "zod";
-import { schedulingRepository } from "../repository/scheduling-repository";
+import { schedulingRepository, type SchedulingRepository } from "../repository/scheduling-repository";
 import {
   validateSession,
   timeRangesOverlap,
@@ -51,6 +51,24 @@ export const SYNAPSE_TOOL_DECLARATIONS = [
         },
       },
       required: ["dayOfWeek", "startTime", "endTime"],
+    },
+  },
+  {
+    name: "searchTimetable",
+    description:
+      "Search active timetable sessions by course, faculty, room, section, or weekday. Return only matching records from the current schedule dataset.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        courseCode: { type: "STRING", description: "Course code or title fragment" },
+        facultyNameOrId: { type: "STRING", description: "Faculty name, employee code, or ID" },
+        roomCode: { type: "STRING", description: "Room code or name fragment" },
+        sectionCode: { type: "STRING", description: "Section code or name fragment" },
+        dayOfWeek: {
+          type: "STRING",
+          description: "Optional weekday: Monday, Tuesday, Wednesday, Thursday, Friday, or Saturday",
+        },
+      },
     },
   },
   {
@@ -111,7 +129,7 @@ export const SYNAPSE_TOOL_DECLARATIONS = [
         },
         sectionCode: {
           type: "STRING",
-          description: "Student section code (e.g. 'CSE-S5-A', 'ME-S3-A')",
+          description: "Student section code (e.g. 'CSE-5A', 'ME-S3-A')",
         },
         preferredDay: {
           type: "STRING",
@@ -252,9 +270,10 @@ export interface ToolExecutionResult {
 export async function executeSchedulingTool(
   toolName: string,
   args: Record<string, any>,
-  userRole: UserRole = "academic_admin"
+  userRole: UserRole = "academic_admin",
+  repository: SchedulingRepository = schedulingRepository
 ): Promise<ToolExecutionResult> {
-  const dataset = await schedulingRepository.getDataset();
+  const dataset = await repository.getDataset();
 
   switch (toolName) {
     case "searchAvailableRooms":
@@ -264,8 +283,12 @@ export async function executeSchedulingTool(
           dayOfWeek: z.enum(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]),
           startTime: z.string().regex(/^\d{1,2}:\d{2}$/),
           endTime: z.string().regex(/^\d{1,2}:\d{2}$/),
-          minCapacity: z.coerce.number().optional(),
-          roomType: z.string().optional(),
+          minCapacity: z.coerce.number().int().positive().optional(),
+          roomType: z.string().trim().min(1).optional(),
+        })
+        .strict()
+        .refine((value) => parseTimeToMinutes(value.startTime) < parseTimeToMinutes(value.endTime), {
+          message: "startTime must be earlier than endTime.",
         })
         .safeParse(args);
 
@@ -362,30 +385,46 @@ export async function executeSchedulingTool(
     case "check_faculty_availability":
     case "getFacultyAvailability":
     case "get_faculty_availability": {
-      const query = (args.facultyNameOrId as string).toLowerCase();
-      const fac = dataset.faculty.find(
-        (f) =>
-          f.id.toLowerCase() === query ||
-          f.employeeCode.toLowerCase() === query ||
-          f.name.toLowerCase().includes(query)
-      );
+      const parsed = z
+        .object({
+          facultyNameOrId: z.string().trim().min(1),
+          dayOfWeek: z.enum(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]),
+          startTime: z.string().regex(/^\d{1,2}:\d{2}$/),
+          endTime: z.string().regex(/^\d{1,2}:\d{2}$/),
+        })
+        .strict()
+        .refine((value) => parseTimeToMinutes(value.startTime) < parseTimeToMinutes(value.endTime), {
+          message: "startTime must be earlier than endTime.",
+        })
+        .safeParse(args);
 
-      if (!fac) {
+      if (!parsed.success) {
+        return { toolName, success: false, error: parsed.error.message };
+      }
+
+      const query = parsed.data.facultyNameOrId.toLowerCase();
+      const exact = dataset.faculty.find(
+        (faculty) => faculty.id.toLowerCase() === query || faculty.employeeCode.toLowerCase() === query
+      );
+      const matches = exact
+        ? [exact]
+        : dataset.faculty.filter((faculty) => faculty.name.toLowerCase().includes(query));
+
+      if (matches.length !== 1) {
         return {
           toolName,
           success: false,
-          error: `Instructor matching '${args.facultyNameOrId}' not found in college faculty directory.`,
+          error: matches.length === 0
+            ? "Instructor matching '" + parsed.data.facultyNameOrId + "' was not found in the current faculty directory."
+            : "The name '" + parsed.data.facultyNameOrId + "' matches multiple instructors. Provide a fuller name or employee code.",
         };
       }
 
-      const day = args.dayOfWeek as DayOfWeek;
-      const startTime = args.startTime as string;
-      const endTime = args.endTime as string;
-
-      // Check current sessions
-      const conflictingSessions = dataset.timetableSessions.filter((s) => {
-        if (s.facultyId !== fac.id || s.status === "cancelled") return false;
-        const slot = dataset.timeSlots.find((t) => t.id === s.timeSlotId);
+      const fac = matches[0];
+      const { dayOfWeek: day, startTime, endTime } = parsed.data;
+      const conflictingSessions = dataset.timetableSessions.filter((session) => {
+        if (session.facultyId !== fac.id || session.status === "cancelled") return false;
+        const slot = dataset.timeSlots.find((timeSlot) => timeSlot.id === session.timeSlotId);
         if (!slot || slot.dayOfWeek !== day) return false;
         return timeRangesOverlap(
           parseTimeToMinutes(startTime),
@@ -395,8 +434,6 @@ export async function executeSchedulingTool(
         );
       });
 
-      const isAvailable = conflictingSessions.length === 0;
-
       return {
         toolName,
         success: true,
@@ -404,16 +441,93 @@ export async function executeSchedulingTool(
           facultyName: fac.name,
           employeeCode: fac.employeeCode,
           department: fac.departmentId,
-          isAvailable,
+          isAvailable: conflictingSessions.length === 0,
           currentAssignedHours: fac.currentAssignedHours,
           maxCreditHours: fac.maxCreditHours,
-          conflictingSessions: conflictingSessions.map((s) => ({
-            sessionId: s.id,
-            subjectId: s.subjectId,
-            classroomId: s.classroomId,
+          conflictingSessions: conflictingSessions.map((session) => ({
+            sessionId: session.id,
+            subjectId: session.subjectId,
+            classroomId: session.classroomId,
           })),
         },
         sources: [{ type: "faculty", id: fac.id, label: fac.name }],
+      };
+    }
+
+    case "searchTimetable":
+    case "search_timetable": {
+      const parsed = z
+        .object({
+          sessionId: z.string().trim().min(1).max(120).optional(),
+          courseCode: z.string().trim().min(1).optional(),
+          facultyNameOrId: z.string().trim().min(1).optional(),
+          roomCode: z.string().trim().min(1).optional(),
+          sectionCode: z.string().trim().min(1).optional(),
+          dayOfWeek: z.enum(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]).optional(),
+        })
+        .strict()
+        .refine((filters) => Object.values(filters).some(Boolean), "Provide at least one timetable filter.")
+        .safeParse(args);
+
+      if (!parsed.success) {
+        return { toolName, success: false, error: parsed.error.message };
+      }
+
+      const filters = parsed.data;
+      const normalized = (value: string) => value.trim().toLowerCase();
+      const subjectsById = new Map(dataset.subjects.map((subject) => [subject.id, subject]));
+      const facultyById = new Map(dataset.faculty.map((faculty) => [faculty.id, faculty]));
+      const roomsById = new Map(dataset.classrooms.map((room) => [room.id, room]));
+      const sectionsById = new Map(dataset.sections.map((section) => [section.id, section]));
+      const slotsById = new Map(dataset.timeSlots.map((slot) => [slot.id, slot]));
+      const courseQuery = filters.courseCode ? normalized(filters.courseCode) : undefined;
+      const facultyQuery = filters.facultyNameOrId ? normalized(filters.facultyNameOrId) : undefined;
+      const roomQuery = filters.roomCode ? normalized(filters.roomCode) : undefined;
+      const sectionQuery = filters.sectionCode ? normalized(filters.sectionCode) : undefined;
+
+      const matching = dataset.timetableSessions
+        .filter((session) => session.status !== "cancelled")
+        .filter((session) => {
+          if (filters.sessionId && session.id !== filters.sessionId) return false;
+          const subject = subjectsById.get(session.subjectId);
+          const faculty = facultyById.get(session.facultyId);
+          const room = roomsById.get(session.classroomId);
+          const section = sectionsById.get(session.sectionId);
+          const slot = slotsById.get(session.timeSlotId);
+
+          if (courseQuery && !`${subject?.code || ""} ${subject?.title || ""}`.toLowerCase().includes(courseQuery)) return false;
+          if (facultyQuery && !`${faculty?.id || ""} ${faculty?.employeeCode || ""} ${faculty?.name || ""}`.toLowerCase().includes(facultyQuery)) return false;
+          if (roomQuery && !`${room?.code || ""} ${room?.name || ""}`.toLowerCase().includes(roomQuery)) return false;
+          if (sectionQuery && !(section?.sectionCode.toLowerCase().includes(sectionQuery) || section?.id.toLowerCase().includes(sectionQuery) || section?.name.toLowerCase().includes(sectionQuery))) return false;
+          if (filters.dayOfWeek && slot?.dayOfWeek !== filters.dayOfWeek) return false;
+          return true;
+        });
+
+      const sessions = matching.slice(0, 100).map((session) => {
+        const subject = subjectsById.get(session.subjectId);
+        const faculty = facultyById.get(session.facultyId);
+        const room = roomsById.get(session.classroomId);
+        const section = sectionsById.get(session.sectionId);
+        const slot = slotsById.get(session.timeSlotId);
+        return {
+          sessionId: session.id,
+          courseCode: subject?.code || session.subjectId,
+          courseTitle: subject?.title || "Unknown course",
+          facultyName: faculty?.name || "Unassigned faculty",
+          sectionCode: section?.sectionCode || session.sectionId,
+          roomCode: room?.code || session.classroomId,
+          dayOfWeek: slot?.dayOfWeek || "Unknown day",
+          startTime: slot?.startTime || "",
+          endTime: slot?.endTime || "",
+          status: session.status,
+        };
+      });
+
+      return {
+        toolName,
+        success: true,
+        data: { totalCount: matching.length, sessions },
+        sources: sessions.map((session) => ({ type: "session", id: session.sessionId, label: `${session.courseCode} · ${session.sectionCode}` })),
       };
     }
 
@@ -421,7 +535,20 @@ export async function executeSchedulingTool(
     case "find_timetable_conflicts":
     case "getTimetableConflicts":
     case "get_timetable_conflicts": {
-      const conflicts = await schedulingRepository.getConflicts(args.status);
+      const parsed = z
+        .object({
+          status: z.enum(["active", "resolved", "ignored"]).optional(),
+          severity: z.enum(["critical", "warning", "advisory"]).optional(),
+        })
+        .strict()
+        .safeParse(args);
+      if (!parsed.success) {
+        return { toolName, success: false, error: parsed.error.message };
+      }
+      const allConflicts = await repository.getConflicts(parsed.data.status);
+      const conflicts = parsed.data.severity
+        ? allConflicts.filter((conflict) => conflict.severity === parsed.data.severity)
+        : allConflicts;
       return {
         toolName,
         success: true,
@@ -447,40 +574,98 @@ export async function executeSchedulingTool(
     case "find_feasible_time_slots":
     case "findFeasibleSlots":
     case "find_feasible_slots": {
-      const code = (args.courseCode as string).toUpperCase();
-      const subject = dataset.subjects.find((s) => s.code === code || s.id.includes(code));
-      if (!subject) {
-        return { toolName, success: false, error: `Subject with code '${code}' not found.` };
+      const parsed = z
+        .object({
+          courseCode: z.string().trim().min(1),
+          sectionCode: z.string().trim().min(1).optional(),
+          preferredDay: z.enum(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]).optional(),
+        })
+        .strict()
+        .safeParse(args);
+      if (!parsed.success) {
+        return { toolName, success: false, error: parsed.error.message };
       }
 
-      const candidateSlots = dataset.timeSlots.slice(0, 8);
-      const results: any[] = [];
+      const code = parsed.data.courseCode.toUpperCase();
+      const subject = dataset.subjects.find((item) => item.code.toUpperCase() === code);
+      if (!subject) {
+        return { toolName, success: false, error: `Subject with code '${code}' was not found in the current dataset.` };
+      }
 
-      for (const slot of candidateSlots) {
-        if (args.preferredDay && slot.dayOfWeek !== args.preferredDay) continue;
-        const freeRooms = dataset.classrooms.filter(
-          (c) => c.capacity >= 45 && c.status === "Available"
+      const activeSessions = dataset.timetableSessions.filter((session) => session.status !== "cancelled");
+      const candidates = activeSessions.filter((session) => {
+        if (session.subjectId !== subject.id) return false;
+        const section = dataset.sections.find((item) => item.id === session.sectionId);
+        const sectionFilter = parsed.data.sectionCode?.toLowerCase();
+        return !sectionFilter || Boolean(
+          section?.sectionCode.toLowerCase().includes(sectionFilter) ||
+          section?.id.toLowerCase().includes(sectionFilter) ||
+          section?.name.toLowerCase().includes(sectionFilter)
         );
-        if (freeRooms.length > 0) {
-          results.push({
-            slotId: slot.id,
-            dayOfWeek: slot.dayOfWeek,
-            time: `${slot.startTime} - ${slot.endTime}`,
-            availableRoom: freeRooms[0].code,
-            capacity: freeRooms[0].capacity,
-          });
+      });
+
+      if (candidates.length === 0) {
+        return {
+          toolName,
+          success: true,
+          data: { courseCode: subject.code, title: subject.title, feasibleSlots: [], evaluatedCandidates: 0 },
+          sources: [{ type: "subject", id: subject.id, label: subject.title }],
+        };
+      }
+
+      const feasibleSlots: Array<{
+        sessionId: string;
+        sectionCode: string;
+        slotId: string;
+        dayOfWeek: string;
+        startTime: string;
+        endTime: string;
+        roomCode: string;
+        capacity: number;
+        feasibilityScore: number;
+        tradeOffs: string[];
+      }> = [];
+      let evaluatedCandidates = 0;
+
+      for (const session of candidates) {
+        const section = dataset.sections.find((item) => item.id === session.sectionId);
+        if (!section) continue;
+        for (const slot of dataset.timeSlots) {
+          if (parsed.data.preferredDay && slot.dayOfWeek !== parsed.data.preferredDay) continue;
+          const rooms = searchEligibleRooms(subject, section, slot, dataset, session.id, activeSessions);
+          for (const room of rooms) {
+            evaluatedCandidates += 1;
+            const evaluation = evaluateCandidateSlot(session, slot.id, room.id, dataset, activeSessions);
+            if (!evaluation.isValid) continue;
+            feasibleSlots.push({
+              sessionId: session.id,
+              sectionCode: section.sectionCode,
+              slotId: slot.id,
+              dayOfWeek: slot.dayOfWeek,
+              startTime: slot.startTime,
+              endTime: slot.endTime,
+              roomCode: room.code,
+              capacity: room.capacity,
+              feasibilityScore: evaluation.feasibilityScore,
+              tradeOffs: evaluation.tradeOffs,
+            });
+          }
         }
       }
+
+      feasibleSlots.sort((left, right) => right.feasibilityScore - left.feasibilityScore);
+      const uniqueSlots = Array.from(
+        new Map(feasibleSlots.map((candidate) => [`${candidate.sessionId}:${candidate.slotId}:${candidate.roomCode}`, candidate])).values()
+      ).slice(0, 12);
 
       return {
         toolName,
         success: true,
-        data: {
-          courseCode: subject.code,
-          title: subject.title,
-          feasibleSlots: results,
-        },
-        sources: [{ type: "subject", id: subject.id, label: subject.title }],
+        data: { courseCode: subject.code, title: subject.title, feasibleSlots: uniqueSlots, evaluatedCandidates },
+        sources: [
+          { type: "subject", id: subject.id, label: subject.title },
+          ...candidates.map((session) => ({ type: "session", id: session.id, label: `Session ${session.id}` })),
+        ],
       };
     }
 
@@ -683,8 +868,8 @@ export async function executeSchedulingTool(
     case "read_syllabus_progress":
     case "getSyllabusProgress":
     case "get_syllabus_progress": {
-      const modules = await schedulingRepository.getSyllabusModules();
-      const progress = await schedulingRepository.getTopicProgress();
+      const modules = await repository.getSyllabusModules();
+      const progress = await repository.getTopicProgress();
 
       let targetSubjects = dataset.subjects;
       if (args.courseCode) {
@@ -734,108 +919,10 @@ export async function executeSchedulingTool(
 
 // ── Confirmation & Commit Execution ──────────────────────────────────────────
 
+/** Legacy unsigned previews are informational only. Use actor-bound signed actions. */
 export async function commitConfirmedAction(
-  confirmationToken: string,
-  userRole: UserRole = "academic_admin"
+  _confirmationToken: string,
+  _userRole: UserRole = "student_viewer"
 ): Promise<{ success: boolean; message: string; recordId?: string }> {
-  try {
-    const raw = Buffer.from(confirmationToken, "base64").toString("utf-8");
-    const payload = JSON.parse(raw);
-    const dataset = await schedulingRepository.getDataset();
-
-    if (payload.type === "EXTRA_CLASS") {
-      const subject = dataset.subjects.find(
-        (s) => s.code === payload.courseCode || s.id === payload.courseCode
-      );
-      const room = dataset.classrooms.find(
-        (c) => c.code === payload.roomCode || c.id === payload.roomCode
-      );
-      const faculty = dataset.faculty.find(
-        (f) => f.id === "FAC-VANCE" || f.name.includes("Vance")
-      ) || dataset.faculty[0];
-
-      const slot = dataset.timeSlots.find(
-        (t) => t.startTime === "10:00" && t.dayOfWeek === "Saturday"
-      ) || dataset.timeSlots[0];
-
-      const section = dataset.sections.find(
-        (s) => s.id === "SEC-CSE-S5-A" || s.sectionCode === "CSE-S5-A"
-      ) || dataset.sections[0];
-
-      const created = await schedulingRepository.createExtraClassRequest({
-        facultyId: faculty?.id || "FAC-VANCE",
-        subjectId: subject?.id || "SUB-CS401",
-        sectionId: section?.id || "SEC-CSE-S5-A",
-        classroomId: room?.id || "ROOM-LH-101",
-        timeSlotId: slot?.id || "SLOT-MON-1",
-        scheduledDate: payload.date || "2026-10-24",
-        reason: payload.reason || "Extra session",
-        status: "pending_hod",
-      });
-
-      return {
-        success: true,
-        message: `Extra class for ${payload.courseCode} on ${payload.date} successfully submitted for HOD review.`,
-        recordId: created.id,
-      };
-    }
-
-    if (payload.type === "SCHEDULE_CHANGE") {
-      const session = dataset.timetableSessions.find((s) => s.id === payload.sessionId);
-      if (!session) throw new Error(`Session ${payload.sessionId} not found`);
-
-      const candidate = {
-        ...session,
-        classroomId: payload.newRoomId,
-        timeSlotId: payload.newSlotId,
-      };
-
-      const otherSessions = dataset.timetableSessions.filter((s) => s.id !== payload.sessionId);
-      const reval = validateSession(candidate, dataset, { activeSessions: otherSessions });
-      if (!reval.isValid) {
-        throw new Error(`Revalidation failed: ${reval.hardViolations.map((v) => v.description).join("; ")}`);
-      }
-
-      session.classroomId = payload.newRoomId;
-      session.timeSlotId = payload.newSlotId;
-      session.status = "moved";
-
-      return {
-        success: true,
-        message: `Session ${payload.sessionId} successfully reallocated to ${payload.newRoomId}.`,
-        recordId: payload.sessionId,
-      };
-    }
-
-    if (payload.type === "TEACHER_EXCHANGE") {
-      const reqFaculty = dataset.faculty.find(
-        (f) => f.name.includes(payload.requesterFaculty) || f.id === payload.requesterFaculty
-      ) || dataset.faculty[0];
-
-      const tgtFaculty = dataset.faculty.find(
-        (f) => f.name.includes(payload.targetFaculty) || f.id === payload.targetFaculty
-      ) || dataset.faculty[1] || dataset.faculty[0];
-
-      const created = await schedulingRepository.createTeacherExchangeRequest({
-        requesterFacultyId: reqFaculty.id,
-        requesterSessionId: payload.requesterSessionId || "SESS-CS401-MON",
-        targetFacultyId: tgtFaculty.id,
-        targetSessionId: payload.targetSessionId || "SESS-ECE305-MON",
-        date: payload.date || "2026-10-26",
-        reason: payload.reason || "Peer substitution",
-        status: "pending_hod",
-        isPeerAccepted: false,
-      });
-
-      return {
-        success: true,
-        message: `Teacher exchange request between ${payload.requesterFaculty} and ${payload.targetFaculty} submitted for review.`,
-        recordId: created.id,
-      };
-    }
-
-    return { success: false, message: "Unknown action payload type." };
-  } catch (err: any) {
-    return { success: false, message: err?.message || "Failed to commit confirmed action." };
-  }
+  return { success: false, message: "Unsigned legacy actions are no longer supported. Create a fresh, signed preview in Timo." };
 }

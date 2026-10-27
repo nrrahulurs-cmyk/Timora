@@ -24,6 +24,7 @@ interface StudioHeaderProps {
   onPublish: () => void;
   onReset: () => void;
   onNewSession?: () => void;
+  onImport?: () => void;
   isSaving?: boolean;
 }
 
@@ -37,6 +38,7 @@ export function StudioHeader({
   onPublish,
   onReset,
   onNewSession,
+  onImport,
   isSaving = false,
 }: StudioHeaderProps) {
   return (
@@ -105,6 +107,7 @@ export function StudioHeader({
 
       {/* ── Header Actions ───────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
+        {onImport && <Button variant="outline" size="sm" onClick={onImport} className="rounded-full text-xs">Import timetable</Button>}
         {/* Undo button */}
         <Button
           variant="outline"

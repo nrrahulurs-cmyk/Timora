@@ -13,10 +13,6 @@ import {
   AlertTriangle,
   Clock,
   BookOpen,
-  ArrowRight,
-  ShieldCheck,
-  CheckCircle2,
-  Calendar,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -33,138 +29,88 @@ import {
   ReferenceLine,
 } from "recharts";
 import { schedulingRepository } from "@/lib/repository/scheduling-repository";
-import { SYNAPSE_SEED_DATA } from "@/data/fixtures";
+import { calculateScheduleAnalytics } from "@/lib/analytics/metrics";
+import type { ScheduleAnalytics } from "@/lib/analytics/metrics";
+import { getCurrentAcademicWeekOffset, getWeekScheduleDetails } from "@/lib/utils/date-utils";
 import type {
   SynapseCollegeDataset,
-  FacultyMember,
-  Classroom,
-  ConflictRecord,
   ExtraClassRequest,
   TeacherExchangeRequest,
 } from "@/types/domain";
 
 export default function AnalyticsPage() {
-  const [mounted, setMounted] = React.useState(false);
   const [dataset, setDataset] = React.useState<SynapseCollegeDataset | null>(null);
+  const [analytics, setAnalytics] = React.useState<ScheduleAnalytics | null>(null);
+  const [currentDate, setCurrentDate] = React.useState<Date | null>(null);
   const [extraRequests, setExtraRequests] = React.useState<ExtraClassRequest[]>([]);
   const [exchangeRequests, setExchangeRequests] = React.useState<TeacherExchangeRequest[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    setMounted(true);
-    Promise.all([
-      schedulingRepository.getDataset().catch(() => SYNAPSE_SEED_DATA),
-      schedulingRepository.getExtraClassRequests().catch(() => SYNAPSE_SEED_DATA.extraClassRequests),
-      schedulingRepository.getTeacherExchangeRequests().catch(() => SYNAPSE_SEED_DATA.teacherExchangeRequests),
-    ])
-      .then(([d, exReqs, exchReqs]) => {
-        setDataset(d || SYNAPSE_SEED_DATA);
-        setExtraRequests(exReqs || SYNAPSE_SEED_DATA.extraClassRequests);
-        setExchangeRequests(exchReqs || SYNAPSE_SEED_DATA.teacherExchangeRequests);
-        setLoading(false);
+    const now = new Date();
+    const weekStart = getWeekScheduleDetails(getCurrentAcademicWeekOffset(now), now).baseMonday;
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const timeout = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error("Analytics request timed out")), 15_000);
+    });
+    Promise.race([schedulingRepository.getDataset(), timeout])
+      .then((data) => {
+        setCurrentDate(now);
+        setDataset(data);
+        setAnalytics(calculateScheduleAnalytics(data, weekStart));
+        setExtraRequests(data.extraClassRequests);
+        setExchangeRequests(data.teacherExchangeRequests);
       })
       .catch((err) => {
         console.error("Failed to load analytics data:", err);
-        setDataset(SYNAPSE_SEED_DATA);
-        setExtraRequests(SYNAPSE_SEED_DATA.extraClassRequests);
-        setExchangeRequests(SYNAPSE_SEED_DATA.teacherExchangeRequests);
+        setLoadError("Analytics could not be loaded. Check the connection and try again.");
+      })
+      .finally(() => {
+        clearTimeout(timeoutId);
         setLoading(false);
       });
   }, []);
 
-  if (!mounted || !dataset || loading) {
+  if (loadError || (!loading && !dataset)) {
     return (
       <div className="space-y-6 pb-12">
-        <WorkspaceHeader
-          section="Performance & Metrics"
-          title="Scheduling Analytics & Insights"
-        />
-        <div className="p-12 text-center text-xs text-slate-400">
-          Loading institutional analytics metrics...
+        <WorkspaceHeader section="Performance & Metrics" title="Scheduling Analytics & Insights" />
+        <div role="alert" className="rounded-2xl border border-rose-200 bg-white p-10 text-center">
+          <p className="text-sm font-semibold text-slate-900">Analytics unavailable</p>
+          <p className="mt-1 text-xs text-slate-500">{loadError || "No analytics dataset was returned."}</p>
+          <button type="button" className="mt-4 rounded-lg border px-3 py-2 text-xs" onClick={() => window.location.reload()}>Retry</button>
         </div>
       </div>
     );
   }
 
-  // 1. Room Utilisation & Occupied vs Available by Day
-  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const roomSlotsByDay = days.map((day) => {
-    const daySessions = dataset.timetableSessions.filter((s) => {
-      if (s.status === "cancelled") return false;
-      const slot = dataset.timeSlots.find((t) => t.id === s.timeSlotId);
-      return slot && slot.dayOfWeek === day;
-    });
-
-    const dayReservations = dataset.reservations.filter((r) => {
-      if (r.status === "cancelled") return false;
-      const slot = dataset.timeSlots.find((t) => r.timeSlotIds.includes(t.id));
-      return slot && slot.dayOfWeek === day;
-    });
-
-    // Total available slots per day = total classrooms (15) * 6 slots = 90
-    const totalPossibleSlots = dataset.classrooms.length * 6;
-    const occupied = daySessions.length;
-    const reserved = dayReservations.length;
-    const available = Math.max(0, totalPossibleSlots - occupied - reserved);
-
-    return {
-      day: day.slice(0, 3),
-      fullDay: day,
-      occupied,
-      available,
-      reserved,
-      utilisationRate: Math.round((occupied / totalPossibleSlots) * 100),
-    };
-  });
-
-  // 2. Faculty Workload Distribution
-  const facultyWorkloadData = dataset.faculty.map((fac) => {
-    const assignedSessions = dataset.timetableSessions.filter(
-      (s) => s.facultyId === fac.id && s.status !== "cancelled"
+  if (loading || !dataset || !currentDate || !analytics) {
+    return (
+      <div className="space-y-6 pb-12">
+        <WorkspaceHeader section="Performance & Metrics" title="Scheduling Analytics & Insights" />
+        <div className="p-12 text-center text-xs text-slate-400">Loading institutional analytics metrics...</div>
+      </div>
     );
-    const assignedHours = assignedSessions.length * 1.5;
-    const maxHours = fac.maxCreditHours || 16;
-    return {
-      name: fac.name.replace("Dr. ", "").replace("Prof. ", ""),
-      fullName: fac.name,
-      department: fac.departmentId.replace("DEPT-", ""),
-      assignedHours,
-      maxHours,
-      loadPercentage: Math.round((assignedHours / maxHours) * 100),
-      isNearCeiling: assignedHours >= maxHours - 2,
-    };
-  });
+  }
 
-  // 3. Conflicts by Category & Status
-  const conflictCategoryCounts = dataset.conflicts.reduce((acc, c) => {
-    const cat =
-      c.type === "room_clash"
-        ? "Room Double-Booking"
-        : c.type === "faculty_overlap"
-        ? "Faculty Overlap"
-        : c.type === "section_clash"
-        ? "Student Cohort"
-        : c.type === "capacity_deficit"
-        ? "Capacity Deficit"
-        : "Safety / Maintenance";
-
-    acc[cat] = (acc[cat] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
-  const conflictPieData = Object.entries(conflictCategoryCounts).map(([name, value]) => ({
-    name,
-    value,
-  }));
+  const currentTerm = dataset.academicTerms.find((term) => term.isCurrent);
+  const termProgress = currentTerm
+    ? Math.min(1, Math.max(0, (currentDate.getTime() - new Date(currentTerm.startDate).getTime()) /
+        (new Date(currentTerm.endDate).getTime() - new Date(currentTerm.startDate).getTime())))
+    : 0;
+  const roomSlotsByDay = analytics.dailyRoomSlots;
+  const facultyWorkloadData = analytics.facultyWorkload;
+  const conflictPieData = analytics.conflictCategories;
 
   const CONFLICT_COLORS = ["#E11D48", "#F59E0B", "#2563EB", "#8B5CF6", "#64748B"];
 
   // 4. Syllabus Completion Against Targets
   const syllabusChartData = dataset.subjects.map((sub) => {
     const modules = dataset.syllabusModules.filter((m) => m.subjectId === sub.id);
-    const planned = modules.reduce((s, m) => s + m.totalPlannedHours, 0) || 36;
+    const planned = modules.reduce((s, m) => s + m.totalPlannedHours, 0);
     const completed = modules.reduce((s, m) => s + m.completedHours, 0);
-    const targetProgress = Math.round(planned * 0.56); // Week 9 target benchmark (56%)
+    const targetProgress = Math.round(planned * termProgress);
 
     return {
       code: sub.code,
@@ -172,7 +118,7 @@ export default function AnalyticsPage() {
       planned,
       completed,
       target: targetProgress,
-      completionRate: Math.round((completed / planned) * 100),
+      completionRate: planned > 0 ? Math.round((completed / planned) * 100) : 0,
       isBehind: completed < targetProgress,
     };
   });
@@ -199,7 +145,7 @@ export default function AnalyticsPage() {
         title="Institutional Scheduling Analytics & Insights"
         badge={
           <Badge variant="outline" size="sm" className="font-mono bg-blue-50/50 border-blue-200 text-blue-800 rounded-full">
-            Fall 2026 Academic Term
+            {currentTerm?.name || "No current academic term"}
           </Badge>
         }
       />
@@ -208,32 +154,32 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         <KpiCard
           title="Facility Occupancy Index"
-          value="76.8%"
-          subtitle="Average active lecture room usage"
+          value={`${analytics.roomUtilizationRate}%`}
+          subtitle={`${analytics.weeklyBookedRoomHours} of ${analytics.weeklyRoomHourCapacity} room-hours booked per week`}
           icon={BarChart3}
           iconColor="text-blue-600"
           iconBg="bg-blue-50"
         />
         <KpiCard
           title="Peak Time Band Saturation"
-          value="94.2%"
-          subtitle="Tuesday 10:00 AM - 11:30 AM"
+          value={`${analytics.peakTimeBand.rate}%`}
+          subtitle={analytics.peakTimeBand.label}
           icon={TrendingUp}
           iconColor="text-amber-600"
           iconBg="bg-amber-50"
         />
         <KpiCard
           title="Active Learning Rooms"
-          value="15 Facilities"
-          subtitle="Lecture halls & specialized labs"
+          value={`${analytics.activeLearningRooms} Facilities`}
+          subtitle="Lecture halls and specialized laboratories"
           icon={Building}
           iconColor="text-emerald-600"
           iconBg="bg-emerald-50"
         />
         <KpiCard
           title="Workload Compliance Rate"
-          value="100%"
-          subtitle="Zero faculty over-allocation breaches"
+          value={`${analytics.workloadComplianceRate}%`}
+          subtitle={`${dataset.faculty.filter((faculty) => faculty.status === "active").length} active faculty evaluated against assigned weekly limits`}
           icon={Users}
           iconColor="text-purple-600"
           iconBg="bg-purple-50"
@@ -249,11 +195,11 @@ export default function AnalyticsPage() {
               Occupied vs. Available Eligible Room-Slots by Day
             </CardTitle>
             <CardDescription className="text-xs text-slate-500 mt-0.5">
-              Comparison of active curriculum sessions, available headroom slots, and maintenance holds across the weekly schedule.
+              Comparison of active sessions and approved room reservations against the actual room and time-slot capacity for the selected week.
             </CardDescription>
           </div>
           <Badge variant="neutral" size="sm" className="text-[10px] font-mono">
-            Ground Truth: Timetable Sessions Database
+            {dataset.classrooms.length} rooms · {dataset.timeSlots.length} weekly slots
           </Badge>
         </div>
 
@@ -445,8 +391,9 @@ export default function AnalyticsPage() {
                   const sessions = dataset.timetableSessions.filter(
                     (s) => s.classroomId === room.id && s.status !== "cancelled"
                   );
-                  const bookedHours = sessions.length * 1.5;
-                  const rate = Math.round((bookedHours / 45) * 100);
+                  const roomMetrics = analytics.roomUtilizationRows.find((item) => item.roomId === room.id);
+                  const bookedHours = roomMetrics?.weeklyHours ?? 0;
+                  const rate = roomMetrics?.utilizationRate ?? 0;
 
                   return (
                     <tr key={room.id} className="hover:bg-slate-50/60 transition-colors">

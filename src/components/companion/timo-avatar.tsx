@@ -48,6 +48,10 @@ export function TimoAvatar({
   showCompanionDots = true,
 }: TimoAvatarProps) {
   const pixelSize = SIZE_MAP[size];
+  const instanceId = React.useId().replaceAll(":", "");
+  const bodyGradient = `${instanceId}-body`;
+  const tasselGradient = `${instanceId}-tassel`;
+  const shadow = `${instanceId}-shadow`;
 
   // State checks
   const isThinking = state === "thinking";
@@ -144,18 +148,18 @@ export function TimoAvatar({
         }`}
       >
         <defs>
-          <linearGradient id="timoBodyGrad2" x1="15" y1="10" x2="85" y2="90" gradientUnits="userSpaceOnUse">
+          <linearGradient id={bodyGradient} x1="15" y1="10" x2="85" y2="90" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="#FFFFFF" />
             <stop offset="60%" stopColor="#F8FAFC" />
             <stop offset="100%" stopColor="#E2E8F0" />
           </linearGradient>
 
-          <linearGradient id="timoTasselGrad2" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id={tasselGradient} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={primaryCoral} />
             <stop offset="100%" stopColor="#E04B20" />
           </linearGradient>
 
-          <filter id="timoShadow2" x="-10%" y="-10%" width="120%" height="120%">
+          <filter id={shadow} x="-10%" y="-10%" width="120%" height="120%">
             <feDropShadow dx="0" dy="2" stdDeviation="2.2" floodColor="#0F172A" floodOpacity="0.1" />
           </filter>
         </defs>
@@ -176,7 +180,7 @@ export function TimoAvatar({
           <path
             d="M28 24 L50 14 L72 24 L50 32 Z"
             fill={darkIndigo}
-            filter="url(#timoShadow2)"
+            filter={`url(#${shadow})`}
           />
           {/* Cap Button */}
           <circle cx="50" cy="23" r="2.8" fill={primaryCoral} />
@@ -192,7 +196,7 @@ export function TimoAvatar({
             cx="68"
             cy="36"
             r="3"
-            fill="url(#timoTasselGrad2)"
+            fill={`url(#${tasselGradient})`}
             className={isToolCalling ? "animate-ping origin-[68px_36px]" : ""}
           />
         </g>
@@ -204,7 +208,7 @@ export function TimoAvatar({
           width="64"
           height="62"
           rx="31"
-          fill="url(#timoBodyGrad2)"
+          fill={`url(#${bodyGradient})`}
           stroke={
             isError
               ? "#FECDD3"
@@ -217,7 +221,7 @@ export function TimoAvatar({
               : "#CBD5E1"
           }
           strokeWidth="2.5"
-          filter="url(#timoShadow2)"
+          filter={`url(#${shadow})`}
         />
 
         {/* Soft Belly Pad */}
@@ -258,10 +262,8 @@ export function TimoAvatar({
           /* Thinking / Upward Looking Eyes */
           <g fill={primaryCoral}>
             <circle cx="41" cy="47" r="4.2">
-              <animate attributeName="cy" values="47;45;47" dur="1.2s" repeatCount="indefinite" />
             </circle>
             <circle cx="59" cy="47" r="4.2">
-              <animate attributeName="cy" values="47;45;47" dur="1.2s" repeatCount="indefinite" />
             </circle>
             <circle cx="42.5" cy="45.5" r="1.5" fill="#FFFFFF" />
             <circle cx="60.5" cy="45.5" r="1.5" fill="#FFFFFF" />
@@ -277,7 +279,6 @@ export function TimoAvatar({
             <circle cx="60.5" cy="50.5" r="1.5" fill="#FFFFFF" />
             {/* Sparkle Node */}
             <circle cx="50" cy="64" r="2" fill={primaryCoral}>
-              <animate attributeName="r" values="1.8;2.8;1.8" dur="0.8s" repeatCount="indefinite" />
             </circle>
           </g>
         ) : isReceiving ? (

@@ -28,10 +28,10 @@ export function KpiRow({
   onScheduledClassesClick,
 }: KpiRowProps) {
   const hasConflicts = metrics.unresolvedConflicts.count > 0;
-  const completionRate = metrics.scheduledClasses.percentage || 97.4;
+  const completionRate = metrics.scheduledClasses.percentage;
   const availableCount = metrics.availableRooms.available;
-  const totalRooms = metrics.availableRooms.total || 15;
-  const vacantPct = Math.round((availableCount / totalRooms) * 100);
+  const totalRooms = metrics.availableRooms.total;
+  const vacantPct = totalRooms > 0 ? Math.round((availableCount / totalRooms) * 100) : 0;
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3.5">
@@ -46,7 +46,7 @@ export function KpiRow({
               {metrics.scheduledClasses.count.toLocaleString()}
             </div>
             <div className="text-xs font-semibold text-slate-600 tracking-tight mt-1">
-              Scheduled Classes
+              Scheduled Sessions
             </div>
           </div>
           <div className="w-8 h-8 rounded-2xl border border-indigo-100 bg-indigo-50/60 flex items-center justify-center text-indigo-600 shrink-0 shadow-2xs">
@@ -112,7 +112,7 @@ export function KpiRow({
             {hasConflicts ? (
               <>
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                <span>3 Crit • 2 Warn</span>
+                <span>{metrics.unresolvedConflicts.criticalCount} Crit • {metrics.unresolvedConflicts.warningCount} Warn</span>
               </>
             ) : (
               <span>All Clear</span>
@@ -135,7 +135,7 @@ export function KpiRow({
               {availableCount}
             </div>
             <div className="text-xs font-semibold text-slate-600 tracking-tight mt-1">
-              Available Rooms
+              Rooms Marked Available
             </div>
           </div>
           <div className="w-8 h-8 rounded-2xl border border-blue-100 bg-blue-50/60 flex items-center justify-center text-blue-600 shrink-0 shadow-2xs">
@@ -148,7 +148,7 @@ export function KpiRow({
             <span>{vacantPct}% Vacant</span>
           </div>
           <span className="text-slate-400 font-medium">
-            {availableCount} of {totalRooms} free
+            {availableCount} of {totalRooms} marked available
           </span>
         </div>
       </Card>
@@ -171,10 +171,10 @@ export function KpiRow({
 
         <div className="mt-2.5 flex items-center justify-between text-[10.5px]">
           <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50/80 text-emerald-700 font-semibold border border-emerald-200/50 shadow-2xs">
-            <span>Optimal (+1.2%)</span>
+            <span>Weekly schedule</span>
           </div>
           <span className="text-slate-400 font-medium">
-            85.0% baseline
+            {metrics.roomUtilisation.supportingText}
           </span>
         </div>
       </Card>
@@ -203,7 +203,7 @@ export function KpiRow({
             <span>Review Queue</span>
           </div>
           <span className="text-purple-700 font-medium flex items-center gap-0.5 hover:underline">
-            4 swaps · 3 extra <ArrowRight className="h-2.5 w-2.5" />
+            {metrics.pendingApprovals.classExchanges} swaps · {metrics.pendingApprovals.extraClasses} extra <ArrowRight className="h-2.5 w-2.5" />
           </span>
         </div>
       </Card>

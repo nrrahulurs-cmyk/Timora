@@ -15,13 +15,15 @@ import {
   commitConfirmedAction,
 } from "@/lib/gemini/tools";
 import { askSynapseCopilot } from "@/lib/gemini/assistant";
-import { schedulingRepository } from "@/lib/repository/scheduling-repository";
+import { schedulingRepository, LocalDemoSchedulingRepository } from "@/lib/repository/scheduling-repository";
+import { SYNAPSE_SEED_DATA } from "@/data/fixtures";
 import type { UserRole } from "@/types/domain";
 
 describe("Phase 7: Ask SYNAPSE Controlled Application Tools", () => {
-  it("declares all 8 required scheduling tools with structured JSON schemas", () => {
+  it("declares all 9 required scheduling tools with structured JSON schemas", () => {
     const requiredTools = [
       "searchAvailableRooms",
+      "searchTimetable",
       "checkFacultyAvailability",
       "findTimetableConflicts",
       "findFeasibleTimeSlots",
@@ -35,7 +37,7 @@ describe("Phase 7: Ask SYNAPSE Controlled Application Tools", () => {
     for (const tool of requiredTools) {
       expect(declaredNames).toContain(tool);
     }
-    expect(SYNAPSE_TOOL_DECLARATIONS.length).toBe(8);
+    expect(SYNAPSE_TOOL_DECLARATIONS.length).toBe(9);
   });
 
   it("validates arguments and rejects invalid parameters", async () => {
@@ -73,6 +75,39 @@ describe("Phase 7: Ask SYNAPSE Controlled Application Tools", () => {
     }
   });
 
+  it("searches active timetable records by course and returns source IDs", async () => {
+    const res = await executeSchedulingTool("searchTimetable", { courseCode: "CS-401" }, "academic_admin");
+
+    expect(res.success).toBe(true);
+    expect(res.data.totalCount).toBeGreaterThan(0);
+    expect(res.data.sessions.length).toBeGreaterThan(0);
+    expect(res.data.sessions.every((session: any) => session.courseCode === "CS-401")).toBe(true);
+    expect(res.sources?.some((source) => source.type === "session")).toBe(true);
+  });
+
+  it("rejects an empty timetable search and invalid time ranges", async () => {
+    const emptySearch = await executeSchedulingTool("searchTimetable", {}, "academic_admin");
+    expect(emptySearch.success).toBe(false);
+
+    const invalidRange = await executeSchedulingTool("searchAvailableRooms", {
+      dayOfWeek: "Friday",
+      startTime: "14:00",
+      endTime: "09:00",
+    }, "academic_admin");
+    expect(invalidRange.success).toBe(false);
+  });
+
+  it("filters timetable conflicts by severity", async () => {
+    const res = await executeSchedulingTool("findTimetableConflicts", {
+      status: "active",
+      severity: "warning",
+    }, "academic_admin");
+
+    expect(res.success).toBe(true);
+    expect(res.data.conflicts.length).toBeGreaterThan(0);
+    expect(res.data.conflicts.every((conflict: any) => conflict.severity === "warning")).toBe(true);
+  });
+
   it("executes checkFacultyAvailability and returns workload and schedule status", async () => {
     const res = await executeSchedulingTool(
       "checkFacultyAvailability",
@@ -107,6 +142,7 @@ describe("Phase 7: Ask SYNAPSE Controlled Application Tools", () => {
     const conf5 = res.data.conflicts.find((c: any) => c.id === "CONF-05");
     expect(conf5).toBeDefined();
     expect(conf5.hasFeasibleAlternative).toBe(false);
+    expect(res.sources?.some((source) => source.type === "conflict" && source.id === "CONF-05")).toBe(true);
   });
 
   it("executes findFeasibleTimeSlots without creating collisions", async () => {
@@ -201,8 +237,8 @@ describe("Phase 7: Two-Phase Commit Lifecycle & Tokenized Confirmation", () => {
 
     const token = res.actionPreview!.confirmationToken;
     const commitRes = await commitConfirmedAction(token, "academic_admin");
-    expect(commitRes.success).toBe(true);
-    expect(commitRes.recordId).toBeDefined();
+    expect(commitRes.success).toBe(false);
+    expect(commitRes.message).toBeTruthy();
   });
 
   it("generates an ActionPreview for proposeTeacherExchange and commits request", async () => {
@@ -224,8 +260,8 @@ describe("Phase 7: Two-Phase Commit Lifecycle & Tokenized Confirmation", () => {
 
     const token = res.actionPreview!.confirmationToken;
     const commitRes = await commitConfirmedAction(token, "academic_admin");
-    expect(commitRes.success).toBe(true);
-    expect(commitRes.recordId).toBeDefined();
+    expect(commitRes.success).toBe(false);
+    expect(commitRes.message).toBeTruthy();
   });
 
   it("rejects invalid or tampered confirmation tokens", async () => {
@@ -262,16 +298,38 @@ describe("Phase 7: Deterministic Copilot & Resilient Offline Fallback", () => {
     expect(response.toolResults![0].toolName).toBe("findTimetableConflicts");
   });
 
-  it("handles extra class proposals through natural language", async () => {
+  it("asks for missing details instead of inventing an extra-class proposal", async () => {
     const response = await askSynapseCopilot(
       "Propose extra class for CS-401 makeup tutorial",
       [],
       "academic_admin"
     );
 
-    expect(response.actionPreview).toBeDefined();
-    expect(response.actionPreview?.actionType).toBe("EXTRA_CLASS");
-    expect(response.reply).toContain("CS-401");
+    expect(response.actionPreview).toBeUndefined();
+    expect(response.reply).toContain("section");
+    expect(response.reply).toContain("I haven’t created or submitted anything");
+  });
+
+  it("answers timetable queries from matching schedule records", async () => {
+    const response = await askSynapseCopilot(
+      "What classes are scheduled for CS-401?",
+      [],
+      "academic_admin"
+    );
+
+    expect(response.provider).toBe("deterministic-copilot");
+    expect(response.toolResults?.[0]?.toolName).toBe("searchTimetable");
+    expect(response.toolResults?.[0]?.data?.totalCount).toBeGreaterThan(0);
+    expect(response.sources?.some((source) => source.type === "session")).toBe(true);
+  });
+
+  it("calculates operational summaries from the active repository dataset", async () => {
+    const response = await askSynapseCopilot("Give me a schedule status summary", [], "academic_admin");
+    const dataset = await schedulingRepository.getDataset();
+
+    expect(response.reply).toContain("Scheduled sessions");
+    expect(response.reply).toContain(String(dataset.timetableSessions.filter((session) => session.status !== "cancelled").length));
+    expect(response.reply).not.toContain("1,284");
   });
 
   it("handles syllabus progress and pacing deficit inquiries", async () => {
@@ -287,6 +345,8 @@ describe("Phase 7: Deterministic Copilot & Resilient Offline Fallback", () => {
 });
 
 describe("Phase 7: Extra Classes, Teacher Exchanges, & Syllabus Tracking Operations", () => {
+  let schedulingRepository: LocalDemoSchedulingRepository;
+  beforeEach(() => { const data = structuredClone(SYNAPSE_SEED_DATA); data.timetableSessions = [data.timetableSessions[0], ...data.timetableSessions.filter(session => ["SESS-CS301-MON", "SESS-MATH202-FRI"].includes(session.id))]; data.conflicts = []; schedulingRepository = new LocalDemoSchedulingRepository(data); });
   it("manages multi-stage extra class request workflow (pending_hod -> pending_dean -> approved)", async () => {
     // 1. Create request
     const req = await schedulingRepository.createExtraClassRequest({
@@ -294,8 +354,8 @@ describe("Phase 7: Extra Classes, Teacher Exchanges, & Syllabus Tracking Operati
       subjectId: "SUB-CS401",
       sectionId: "SEC-CSE-S5-A",
       classroomId: "ROOM-LH-101",
-      timeSlotId: "SLOT-SAT-1",
-      scheduledDate: "2026-10-31",
+      timeSlotId: "SLOT-FRI-1",
+      scheduledDate: "2026-11-06",
       reason: "Distributed state machines tutorial",
       status: "pending_hod",
     });
@@ -303,9 +363,8 @@ describe("Phase 7: Extra Classes, Teacher Exchanges, & Syllabus Tracking Operati
     expect(req.status).toBe("pending_hod");
 
     // 2. HOD approves -> pending_dean
-    req.status = "pending_dean";
-    req.reviewedBy = "HOD Turing";
-    expect(req.status).toBe("pending_dean");
+    await schedulingRepository.advanceExtraClassRequest(req.id, "HOD Turing");
+    expect((await schedulingRepository.getExtraClassRequests()).find(item => item.id === req.id)?.status).toBe("pending_dean");
 
     // 3. Dean approves -> approved
     const approved = await schedulingRepository.approveExtraClassRequest(req.id, "Dean Vance");
@@ -318,12 +377,12 @@ describe("Phase 7: Extra Classes, Teacher Exchanges, & Syllabus Tracking Operati
 
   it("supports rejecting extra class requests with reason and auditor tracking", async () => {
     const req = await schedulingRepository.createExtraClassRequest({
-      facultyId: "FAC-COLE",
-      subjectId: "SUB-ME202",
-      sectionId: "SEC-ME-S3-A",
-      classroomId: "ROOM-HALL-C",
-      timeSlotId: "SLOT-SAT-2",
-      scheduledDate: "2026-10-31",
+      facultyId: "FAC-VANCE",
+      subjectId: "SUB-CS401",
+      sectionId: "SEC-CSE-S5-A",
+      classroomId: "ROOM-LH-102",
+      timeSlotId: "SLOT-FRI-1",
+      scheduledDate: "2026-11-06",
       reason: "Turbulence revision",
       status: "pending_hod",
     });
@@ -347,14 +406,24 @@ describe("Phase 7: Extra Classes, Teacher Exchanges, & Syllabus Tracking Operati
       isPeerAccepted: true,
     });
 
-    expect(req.isPeerAccepted).toBe(true);
+    expect(req.isPeerAccepted).toBe(false);
     expect(req.status).toBe("pending_hod");
 
-    const approved = await schedulingRepository.approveTeacherExchangeRequest(req.id, "Dean Vance");
-    expect(approved).toBe(true);
+    await expect(schedulingRepository.createTeacherExchangeRequest({
+      requesterFacultyId: "FAC-TURING",
+      requesterSessionId: "SESS-CS301-MON",
+      targetFacultyId: "FAC-LOVELACE",
+      targetSessionId: "SESS-MATH202-FRI",
+      date: "2026-11-03",
+      reason: "A requester date on the wrong weekday",
+      status: "pending_hod",
+      isPeerAccepted: false,
+    })).rejects.toThrow("scheduled occurrence");
+
+    await expect(schedulingRepository.approveTeacherExchangeRequest(req.id, "Dean Vance")).rejects.toThrow("date-specific");
 
     const updated = (await schedulingRepository.getTeacherExchangeRequests()).find((r) => r.id === req.id);
-    expect(updated?.status).toBe("approved");
+    expect(updated?.status).toBe("pending_hod");
   });
 
   it("tracks topic-level delivery updates and recalculates module and subject velocity", async () => {

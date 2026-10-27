@@ -231,16 +231,13 @@ describe("SYNAPSE Seed Data & Domain Relationships Integrity", () => {
       expect(res.message).toContain("no feasible alternative");
     });
 
-    it("approves extra class and teacher exchange requests", async () => {
+    it("refuses unreviewed extra classes and unsupported exchange commits", async () => {
       const repo = new LocalDemoSchedulingRepository();
-      const extraSuccess = await repo.approveExtraClassRequest("EXTRA-001", "USER-TURING");
-      expect(extraSuccess).toBe(true);
-
-      const exchangeSuccess = await repo.approveTeacherExchangeRequest(
+      await expect(repo.approveExtraClassRequest("EXTRA-001", "USER-TURING")).rejects.toThrow("Department review");
+      await expect(repo.approveTeacherExchangeRequest(
         "EXCH-001",
         "USER-TURING"
-      );
-      expect(exchangeSuccess).toBe(true);
+      )).rejects.toThrow("date-specific");
     });
   });
 });

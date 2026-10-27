@@ -17,7 +17,7 @@ import type { ConflictRecord } from "@/types/domain";
 interface PublishDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirmPublish: () => void;
+  onConfirmPublish: () => void | Promise<void>;
   versionNumber: string;
   activeConflicts: ConflictRecord[];
 }
@@ -30,6 +30,8 @@ export function PublishDialog({
   activeConflicts,
 }: PublishDialogProps) {
   const hasCritical = activeConflicts.some((c) => c.severity === "critical");
+  const [pending, setPending] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -98,8 +100,9 @@ export function PublishDialog({
           )}
 
           <div className="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded border border-slate-200">
-            Publishing will notify 10 faculty members, lock section enrollments for 341 students, and broadcast the authoritative schedule to institutional portals.
+            Publishing records a new version and an audit entry. Resolve critical conflicts before making this schedule authoritative.
           </div>
+          {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
@@ -109,13 +112,16 @@ export function PublishDialog({
           <Button
             variant="default"
             size="sm"
-            onClick={() => {
-              onConfirmPublish();
-              onClose();
+            disabled={pending || hasCritical}
+            onClick={async () => {
+              setPending(true); setError(null);
+              try { await onConfirmPublish(); onClose(); }
+              catch (failure) { setError(failure instanceof Error ? failure.message : "Publication failed. Try again."); }
+              finally { setPending(false); }
             }}
             className="h-8 text-xs bg-[rgb(var(--color-primary))] text-white hover:bg-[rgb(var(--color-primary-hover))]"
           >
-            {hasCritical ? "Override & Publish" : "Confirm & Publish"}
+            {pending ? "Publishing…" : hasCritical ? "Resolve critical conflicts" : "Confirm & Publish"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -316,10 +316,24 @@ describe("SYNAPSE Constraint Engine — Core Deterministic Validation", () => {
       expect(eligible.some((r) => r.id === "ROOM-SEM-302")).toBe(false);
     });
 
+    it("ignores cancelled sessions when checking rooms, faculty, and student groups", () => {
+      const session = dataset.timetableSessions.find((item) => item.id === "SESS-CS401-MON")!;
+      const slot = dataset.timeSlots.find((item) => item.id === session.timeSlotId)!;
+      const subject = dataset.subjects.find((item) => item.id === session.subjectId)!;
+      const section = dataset.sections.find((item) => item.id === session.sectionId)!;
+      const room = dataset.classrooms.find((item) => item.id === session.classroomId)!;
+      dataset.timetableSessions = [{ ...session, status: "cancelled" }];
+      dataset.reservations = [];
+
+      expect(searchEligibleRooms(subject, section, slot, dataset).some((item) => item.id === room.id)).toBe(true);
+      expect(checkFacultyAvailability(session.facultyId, slot.id, dataset).isAvailable).toBe(true);
+      expect(checkStudentGroupAvailability(session.sectionId, slot.id, dataset).isAvailable).toBe(true);
+    });
+
     it("checks faculty and student group availability correctly", () => {
-      // Dr. Marie Curie is not teaching at SLOT-WED-2
+      // No recorded Wednesday availability: being unbooked is not verified availability.
       const curieAvail = checkFacultyAvailability("FAC-CURIE", "SLOT-WED-2", dataset);
-      expect(curieAvail.isAvailable).toBe(true);
+      expect(curieAvail.isAvailable).toBe(false);
 
       // Dr. Richard Feynman is teaching ECE-305 at SLOT-WED-2
       const feynmanAvail = checkFacultyAvailability("FAC-FEYNMAN", "SLOT-WED-2", dataset);

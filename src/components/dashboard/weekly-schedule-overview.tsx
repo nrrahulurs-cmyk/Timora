@@ -5,43 +5,48 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Clock, MapPin, User, ArrowRight, CalendarDays, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
-import { SYNAPSE_SEED_DATA } from "@/data/fixtures";
+import type { SynapseCollegeDataset } from "@/types/domain";
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
-export function WeeklyScheduleOverview() {
+export function WeeklyScheduleOverview({ dataset }: { dataset: SynapseCollegeDataset }) {
   const [selectedDay, setSelectedDay] = React.useState("Monday");
 
   // Get active sessions for the selected day
   const daySessions = React.useMemo(() => {
-    const slots = SYNAPSE_SEED_DATA.timeSlots.filter((t) => t.dayOfWeek === selectedDay);
+    const slots = dataset.timeSlots.filter((t) => t.dayOfWeek === selectedDay);
     const slotIds = new Set(slots.map((s) => s.id));
 
-    return SYNAPSE_SEED_DATA.timetableSessions
-      .filter((sess) => slotIds.has(sess.timeSlotId))
+    const daySessions = dataset.timetableSessions
+      .filter((sess) => slotIds.has(sess.timeSlotId) && sess.status !== "cancelled");
+    return daySessions
       .slice(0, 5)
       .map((sess) => {
         const slot = slots.find((t) => t.id === sess.timeSlotId);
-        const subj = SYNAPSE_SEED_DATA.subjects.find((s) => s.id === sess.subjectId);
-        const room = SYNAPSE_SEED_DATA.classrooms.find((c) => c.id === sess.classroomId);
-        const fac = SYNAPSE_SEED_DATA.faculty.find((f) => f.id === sess.facultyId);
-        const sec = SYNAPSE_SEED_DATA.sections.find((s) => s.id === sess.sectionId);
+        const subj = dataset.subjects.find((s) => s.id === sess.subjectId);
+        const room = dataset.classrooms.find((c) => c.id === sess.classroomId);
+        const fac = dataset.faculty.find((f) => f.id === sess.facultyId);
+        const sec = dataset.sections.find((s) => s.id === sess.sectionId);
 
         return {
           id: sess.id,
-          time: slot ? `${slot.startTime} – ${slot.endTime}` : "10:00 – 11:30",
+          time: slot ? `${slot.startTime} – ${slot.endTime}` : "Time unavailable",
           slotIndex: slot?.slotIndex || 1,
-          subjectCode: subj?.code || "CS-401",
-          subjectTitle: subj?.title || "Academic Session",
+          subjectCode: subj?.code || "Unknown subject",
+          subjectTitle: subj?.title || "Subject record unavailable",
           subjectType: subj?.type || "Lecture",
-          roomCode: room?.code || "LH-101",
-          capacity: room?.capacity || 100,
-          facultyName: fac?.name || "Faculty Instructor",
-          sectionCode: sec?.sectionCode || "CSE-S5-A",
+          roomCode: room?.code || "Unknown room",
+          capacity: room?.capacity || 0,
+          facultyName: fac?.name || "Faculty record unavailable",
+          sectionCode: sec?.sectionCode || "Unknown section",
         };
       })
       .sort((a, b) => a.slotIndex - b.slotIndex);
-  }, [selectedDay]);
+  }, [dataset, selectedDay]);
+  const totalDaySessions = dataset.timetableSessions.filter((session) => {
+    const slot = dataset.timeSlots.find((item) => item.id === session.timeSlotId);
+    return session.status !== "cancelled" && slot?.dayOfWeek === selectedDay;
+  }).length;
 
   return (
     <div className="space-y-3">
@@ -124,7 +129,7 @@ export function WeeklyScheduleOverview() {
 
       <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
         <span className="text-[11px] text-slate-500">
-          Showing 5 scheduled lectures for {selectedDay} • Fall 2026
+          Showing {Math.min(totalDaySessions, 5)} of {totalDaySessions} scheduled sessions for {selectedDay}
         </span>
         <Link
           href="/timetable"

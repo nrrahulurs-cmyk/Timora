@@ -58,6 +58,10 @@ describe('Phase 8: Publishing & Version History Governance', () => {
 
   describe('Schedule Version Publishing & Non-Destructive Archival', () => {
     it('creates a published version and archives the previously published version without destroying it', async () => {
+      const valid = structuredClone(SYNAPSE_SEED_DATA);
+      valid.timetableSessions = [valid.timetableSessions[0]];
+      valid.conflicts = [];
+      repository = new LocalDemoSchedulingRepository(valid);
       const versionsBefore = await repository.getScheduleVersions();
       const initialPublished = versionsBefore.find(v => v.status === 'published');
       expect(initialPublished).toBeDefined();
@@ -95,8 +99,12 @@ describe('Phase 8: Publishing & Version History Governance', () => {
 
   describe('Validated Version Restore & Rollback', () => {
     it('rolls back to a historical version non-destructively by archiving current published version', async () => {
-      const versions = await repository.getScheduleVersions();
-      const targetVersion = versions[versions.length - 1]; // Pick an older version
+      const valid = structuredClone(SYNAPSE_SEED_DATA);
+      valid.timetableSessions = [valid.timetableSessions[0]];
+      valid.conflicts = [];
+      repository = new LocalDemoSchedulingRepository(valid);
+      const published = await repository.publishScheduleVersion('v2.4', 'Coordinator');
+      const targetVersion = published.version!;
 
       const rollbackResult = await repository.rollbackToVersion(
         targetVersion.id,
@@ -107,6 +115,7 @@ describe('Phase 8: Publishing & Version History Governance', () => {
       expect(rollbackResult.restoredVersion).toBeDefined();
       expect(rollbackResult.restoredVersion?.id).toBe(targetVersion.id);
       expect(rollbackResult.restoredVersion?.status).toBe('published');
+      expect((await repository.getDataset()).timetableSessions).toEqual(targetVersion.sessionSnapshot);
 
       // Verify audit log records the rollback with reason, actor, and timestamp
       const auditEntries = await repository.getChangeHistory();

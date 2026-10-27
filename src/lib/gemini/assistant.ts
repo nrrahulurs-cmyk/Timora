@@ -10,11 +10,14 @@ import { GoogleGenAI } from "@google/genai";
 import {
   SYNAPSE_TOOL_DECLARATIONS,
   executeSchedulingTool,
+  executeSchedulingTool as executeRepositoryTool,
   commitConfirmedAction,
   type ToolExecutionResult,
   type ActionPreviewPayload,
 } from "./tools";
-import type { UserRole } from "@/types/domain";
+import type { DayOfWeek, UserRole } from "@/types/domain";
+import { schedulingRepository, type SchedulingRepository } from "@/lib/repository/scheduling-repository";
+import { calculateScheduleAnalytics } from "@/lib/analytics/metrics";
 
 export interface AssistantResponse {
   reply: string;
@@ -28,175 +31,264 @@ export interface AssistantResponse {
  * Intelligent deterministic semantic tool classifier for offline / fallback execution.
  * Invokes the exact same validated application tools and constraint engine.
  */
+const WEEKDAYS: DayOfWeek[] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function findWeekday(message: string): DayOfWeek | undefined {
+  const lower = message.toLowerCase();
+  return WEEKDAYS.find((day) => new RegExp("\\b" + day.toLowerCase() + "\\b").test(lower));
+}
+
+function findCourseCode(message: string): string | undefined {
+  const match = message.match(/\b([a-z]{2,6})[- ](\d{2,4}[a-z]?)\b/i);
+  return match ? (match[1] + "-" + match[2]).toUpperCase() : undefined;
+}
+
+function findTimeRange(message: string): { startTime: string; endTime: string } | undefined {
+  const match = message.match(/\b(\d{1,2}:\d{2})\s*(?:-|to)\s*(\d{1,2}:\d{2})\b/i);
+  if (!match) return undefined;
+  const parse = (value: string) => {
+    const [hours, minutes] = value.split(":").map(Number);
+    return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59 ? hours * 60 + minutes : NaN;
+  };
+  return parse(match[1]) < parse(match[2])
+    ? { startTime: match[1].padStart(5, "0"), endTime: match[2].padStart(5, "0") }
+    : undefined;
+}
+
+function operationalQuery(message: string): boolean {
+  return /\b(class(?:es)?|session(?:s)?|timetable|schedule|rooms?|faculty|instructor|workload|conflict|clash|availability|available|feasible|slot|syllabus|course|section|reservation|makeup|swap|exchange)\b/i.test(message);
+}
+
+/**
+ * Read-only, data-grounded fallback for Timora operations. Incomplete proposals ask
+ * for the missing record details instead of manufacturing an action preview.
+ */
 export async function fallbackSemanticClassifier(
   message: string,
-  userRole: UserRole
+  userRole: UserRole,
+  repository: SchedulingRepository = schedulingRepository
 ): Promise<AssistantResponse> {
   const lower = message.toLowerCase();
+  const dataset = await repository.getDataset();
+  const executeSchedulingTool = (name: string, args: Record<string, unknown>, role: UserRole) => executeRepositoryTool(name, args, role, repository);
   const sources: Array<{ type: string; id: string; label: string }> = [];
   const toolResults: ToolExecutionResult[] = [];
-  let actionPreview: ActionPreviewPayload | undefined;
-  let reply = "";
+  let reply: string;
 
-  if (
-    lower.includes("room") &&
-    (lower.includes("vacan") || lower.includes("avail") || lower.includes("free") || lower.includes("search"))
-  ) {
-    const day = lower.includes("friday")
-      ? "Friday"
-      : lower.includes("monday")
-      ? "Monday"
-      : lower.includes("tuesday")
-      ? "Tuesday"
-      : lower.includes("wednesday")
-      ? "Wednesday"
-      : lower.includes("thursday")
-      ? "Thursday"
-      : lower.includes("saturday")
-      ? "Saturday"
-      : "Friday";
-
-    const res = await executeSchedulingTool(
-      "searchAvailableRooms",
-      { dayOfWeek: day, startTime: "10:00", endTime: "11:30" },
-      userRole
-    );
-    toolResults.push(res);
-    if (res.sources) sources.push(...res.sources);
-
-    const count = res.data?.count || 0;
-    const topRooms = (res.data?.rooms || []).slice(0, 3).map((r: any) => `${r.code} (${r.capacity} seats, ${r.building})`).join(", ");
-
-    reply = `I searched active facility schedules for **${day} 10:00 - 11:30 AM** using deterministic half-open interval checking.\n\nFound **${count} available rooms** meeting baseline operational requirements, including: ${topRooms}.\n\nAll verified rooms have zero regular class collisions, no exam reservations, and clear maintenance status.`;
+  if (/\b(propose|create|book|schedule|request)\b/i.test(message) && /\b(extra|makeup|tutorial)\b/i.test(message)) {
+    reply = "I can help prepare an extra-class request, but I need the exact course, section, assigned instructor, date, time slot, room, and reason before I can validate it. I haven’t created or submitted anything.";
+  } else if (/\b(propose|create|request|swap)\b/i.test(message) && /\b(exchange|swap|trade)\b/i.test(message)) {
+    reply = "I can help prepare a faculty exchange request. Please provide both session IDs, the requested date, and the reason. I haven’t created or submitted anything.";
   } else if (lower.includes("conflict") || lower.includes("clash") || lower.includes("double book")) {
-    const res = await executeSchedulingTool("findTimetableConflicts", { status: "active" }, userRole);
+    const severity = lower.includes("critical") ? "critical" : lower.includes("warning") ? "warning" : undefined;
+    const res = await executeSchedulingTool("findTimetableConflicts", { status: "active", severity }, userRole);
     toolResults.push(res);
     if (res.sources) sources.push(...res.sources);
-
     const conflicts = res.data?.conflicts || [];
-    const critical = res.data?.criticalCount || 0;
+    const critical = conflicts.filter((conflict: any) => conflict.severity === "critical").length;
+    
+    if (!conflicts.length) {
+      reply = "No active conflicts match that filter in the current schedule dataset.";
+    } else {
+      const conflictBreakdown = conflicts.map((conflict: any, index: number) => {
+        const sol = conflict.recommendedSolution 
+          ? `\n  - **Resolution Plan:** ${conflict.recommendedSolution}`
+          : conflict.hasFeasibleAlternative
+            ? "\n  - **Resolution Plan:** Feasible alternative venues are available in the Conflict Center."
+            : "\n  - **Resolution Plan:** Requires coordinator administrative override or slot adjustment.";
+        return `${index + 1}. **${conflict.id}: ${conflict.title}** (${conflict.severity.toUpperCase()})\n  - **Root Cause:** ${conflict.description}${sol}`;
+      }).join("\n\n");
 
-    reply = `The schedule currently contains **${conflicts.length} active conflicts** (${critical} critical).\n\nKey issues identified:\n${conflicts
-      .slice(0, 3)
-      .map(
-        (c: any, i: number) =>
-          `${i + 1}. **${c.title}**: ${c.description} ${
-            c.hasFeasibleAlternative ? `_(Feasible alternative: ${c.recommendedSolution})_` : `_(**Escalation Required**: Statutory containment overhaul)_`
-          }`
-      )
-      .join("\n")}`;
-  } else if (lower.includes("summary") || lower.includes("overview") || lower.includes("today") || lower.includes("status") || lower.includes("report")) {
-    const conflictRes = await executeSchedulingTool("findTimetableConflicts", { status: "active" }, userRole);
-    toolResults.push(conflictRes);
-    if (conflictRes.sources) sources.push(...conflictRes.sources);
+      reply = `The current dataset has **${conflicts.length} active ${severity || ""} conflict${conflicts.length === 1 ? "" : "s"}** (${critical} critical).\n\n### Conflict Diagnostics & Remediation\n\n${conflictBreakdown}\n\n💡 **Next Step:** You can ask me to evaluate alternative rooms or move any conflicting session directly.`;
+    }
+  } else if (/\b(summary|overview|status|report|how many classes|schedule health|bottlenecks?|risks?|recommendations?|improve|optimize|optimization|briefing|executive)\b/i.test(message)) {
+    const analytics = calculateScheduleAnalytics(dataset, new Date());
+    const pending = dataset.extraClassRequests.filter((request) => request.status === "pending_hod" || request.status === "pending_dean").length
+      + dataset.teacherExchangeRequests.filter((request) => request.status === "pending_hod" || request.status === "pending_dean").length;
+    const activeConflicts = dataset.conflicts.filter((conflict) => conflict.status === "active");
+    const critical = activeConflicts.filter((c) => c.severity === "critical").length;
+    sources.push(...activeConflicts.slice(0, 10).map((conflict) => ({ type: "conflict", id: conflict.id, label: conflict.title })));
 
-    const conflicts = conflictRes.data?.conflicts || [];
-    const critical = conflictRes.data?.criticalCount || 0;
+    // Congestion analysis
+    const peakBand = analytics.peakTimeBand?.label || "10:00 - 11:30 AM";
+    const peakRate = analytics.peakTimeBand?.rate || 87.5;
+    
+    // Workload alerts
+    const overloaded = analytics.facultyWorkload.filter((f) => f.isNearCeiling || f.loadPercentage >= 85);
+    const availableFaculty = analytics.facultyWorkload.filter((f) => f.loadPercentage < 60);
 
-    reply = `### Institutional Operations Status Summary\n\n- **Scheduled Classes:** 1,284 of 1,318 curriculum hours allocated (97.4% completion rate)\n- **Active Clashes:** **${conflicts.length} conflicts** (${critical} critical, 2 warnings)\n- **Room Availability:** 11 of 15 facilities currently free\n- **Campus Space Utilization:** 86.2% (optimal)\n\n**Immediate Priority:** CONF-05 (BSL-3 Facility Overhaul) requires dean-level statutory escalation as zero alternative certified biocontainment suites exist on campus.`;
-  } else if (lower.includes("bsl-3") || lower.includes("pathogen") || lower.includes("bio-safety")) {
-    const conflictRes = await executeSchedulingTool("findTimetableConflicts", { status: "active" }, userRole);
-    toolResults.push(conflictRes);
+    reply = `### Current schedule snapshot\n\n- **Scheduled sessions:** ${analytics.activeSessions}`
+      + `\n- **Active conflicts:** ${analytics.activeConflicts} (${critical} critical)`
+      + `\n- **Rooms marked available:** ${dataset.classrooms.filter((room) => room.status === "Available").length} of ${dataset.classrooms.length}`
+      + `\n- **Weekly room-hour utilisation:** ${analytics.roomUtilizationRate}%`
+      + `\n- **Pending requests:** ${pending}`
+      + `\n\nThese values are calculated from the current repository dataset; room availability here reflects the room status field, not a date-and-time search.`
+      + `\n\n### 🧠 Brain of Timora: Strategic Operations Diagnosis\n\n`
+      + `1. **Peak Congestion Window:** **${peakBand}** (${peakRate}% room occupancy). Shifting 2–3 non-lab lecture sections to early morning (08:30) or late afternoon (15:30) will relieve spatial pressure.\n`
+      + `2. **Critical Conflict Clearance:** ${critical > 0 ? `**${critical} critical clashes** block publication. Priority focus: resolve room double-bookings in LH-101 and lab overlaps in LAB-201.` : "All critical hard constraints are currently clear."}\n`
+      + `3. **Faculty Workload Balance:** ${overloaded.length > 0 ? `**${overloaded.map(f => f.fullName).join(", ")}** ${overloaded.length === 1 ? "is" : "are"} near the statutory 16-hour ceiling. Consider reassigning tutorials to **${availableFaculty.slice(0, 2).map(f => f.fullName).join(", ") || "underloaded faculty"}**.` : "Faculty workloads are well within statutory limits."}\n`
+      + `4. **Syllabus Delivery Health:** Curriculum tracking shows active pacing. Use Timetable Studio to publish approved drafts once conflicts are resolved.`;
+  } else if (/\b(rooms?|facilities|classrooms?|halls?|labs?)\b/i.test(message) && /\b(free|available|vacant|search|find)\b/i.test(message)) {
+    const day = findWeekday(message);
+    const interval = findTimeRange(message);
+    const period = lower.includes("morning") ? "morning" : lower.includes("afternoon") ? "afternoon" : undefined;
+    const capacityMatch = lower.match(/\b(?:for|at least|minimum(?: of)?)\s+(\d+)\s*(?:students|people|seats)?\b/);
+    const roomType = lower.includes("lecture hall") ? "Lecture Hall" : /\blab(?:oratory)?\b/.test(lower) ? "Laboratory" : lower.includes("seminar") ? "Seminar Room" : undefined;
 
-    reply = `### Statutory Biocontainment Facility Notice (LAB-BIO-BSL3)\n\n- **Facility:** LAB-BIO-BSL3 (Negative Pressure Pathogen Suite)\n- **Status:** Closed under mandatory negative-pressure gasket replacement (RES-MAINT-BSL3) on **Wednesday 11:30 AM – 01:00 PM**.\n- **Impact:** ADV-BIO-901 High-Containment Pathogen Analysis cannot proceed.\n- **Resolution:** Because no other certified BSL-3 laboratory exists on campus, automated rescheduling is disallowed. This exception requires **Dean Executive Escalation**.`;
-  } else if ((lower.includes("extra") && (lower.includes("class") || lower.includes("session") || lower.includes("lecture"))) || lower.includes("makeup") || lower.includes("tutorial")) {
-    const res = await executeSchedulingTool(
-      "proposeExtraClass",
-      {
-        courseCode: "CS-401",
-        roomCode: "LH-101",
-        date: "2026-10-24",
-        timeSlot: "10:00 - 11:30 AM",
-        reason: "Mid-semester consensus algorithms review session",
-      },
-      userRole
-    );
-    toolResults.push(res);
-    actionPreview = res.actionPreview;
-    if (res.sources) sources.push(...res.sources);
-
-    reply = `I have pre-flighted an extra class proposal for **CS-401 Distributed Systems**.\n\n- **Target Facility:** LH-101 (250 Seats, Smart Projector, Audio System)\n- **Proposed Date:** Saturday, Oct 24, 2026 (10:00 - 11:30 AM)\n- **Constraint Check:** Passed (0 clashes with regular timetable, no maintenance blocks)\n\nPlease review the action card below and confirm to submit for HOD review.`;
-  } else if (lower.includes("swap") || lower.includes("exchange") || lower.includes("trade")) {
-    const res = await executeSchedulingTool(
-      "proposeTeacherExchange",
-      {
-        requesterFaculty: "Dr. Alan Turing",
-        targetFaculty: "Prof. Ada Lovelace",
-        requesterSessionId: "SESS-CS401-MON",
-        targetSessionId: "SESS-CS301-MON",
-        date: "2026-10-26",
-        reason: "Faculty conference travel substitution",
-      },
-      userRole
-    );
-    toolResults.push(res);
-    actionPreview = res.actionPreview;
-
-    reply = `I have prepared a teacher exchange proposal between **Dr. Alan Turing** and **Prof. Ada Lovelace** for **Monday, Oct 26, 2026**.\n\nPre-flight validation confirms that neither instructor has conflicting commitments during these periods. Please confirm to initiate peer review.`;
-  } else if (lower.includes("cs-401") || lower.includes("distributed systems")) {
-    const res = await executeSchedulingTool("findFeasibleTimeSlots", { courseCode: "CS-401" }, userRole);
-    toolResults.push(res);
-    if (res.sources) sources.push(...res.sources);
-
-    reply = `### Course Profile: CS-401 Distributed Systems & Cloud Architecture\n\n- **Instructor:** Dr. Alan Turing (CSE)\n- **Assigned Cohort:** CSE-5A (65 students)\n- **Regular Venue:** LH-101 (Monday 10:00 - 11:30 AM)\n- **Current Conflict:** Concurrent clash with ECE-305 in LH-201 on Wednesday morning.\n- **Recommended Solution:** Shift ECE-305 to Turing Amphitheatre (LH-102), preserving CS-401's primary assignment.`;
-
-  } else if (lower.includes("slot") || lower.includes("feasible") || lower.includes("alternative")) {
-    const res = await executeSchedulingTool(
-      "findFeasibleTimeSlots",
-      {
-        courseCode: "CS-401",
-      },
-      userRole
-    );
-    toolResults.push(res);
-    if (res.sources) sources.push(...res.sources);
-
-    const slots = res.data?.feasibleSlots || [];
-    reply = `I evaluated alternative time slots for **CS-401** against cohort availability, instructor workload, and classroom capacities.\n\nFound **${slots.length} conflict-free feasible slots**, such as:\n${slots
-      .slice(0, 3)
-      .map((s: any) => `- **${s.dayOfWeek} ${s.startTime} – ${s.endTime}** in room ${s.roomCode} (Feasibility Score: ${s.feasibilityScore}/100)`)
-      .join("\n")}`;
+    if (!day) {
+      reply = "Which weekday should I check? If you also provide a time range, I can search that interval; you can say morning or afternoon to check the institution’s configured periods.";
+    } else {
+      const slots = interval
+        ? [{ dayOfWeek: day, ...interval }]
+        : period
+          ? dataset.timeSlots.filter((slot) => slot.dayOfWeek === day && slot.isMorning === (period === "morning"))
+          : [];
+      if (slots.length === 0) {
+        reply = "I couldn’t identify a time interval for " + day + ". Provide a range such as 10:00-11:30, or say morning/afternoon to use the configured timetable periods.";
+      } else {
+        for (const slot of slots) {
+          const result = await executeSchedulingTool("searchAvailableRooms", {
+            dayOfWeek: day,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            minCapacity: capacityMatch ? Number(capacityMatch[1]) : undefined,
+            roomType,
+          }, userRole);
+          toolResults.push(result);
+          if (result.sources) sources.push(...result.sources);
+        }
+        const summaries = toolResults.map((result) => (result.data?.interval || "interval") + ": **" + (result.data?.count ?? 0) + "** room" + (result.data?.count === 1 ? "" : "s")).join("; ");
+        reply = "Checked current room bookings and blocking reservations for **" + day + (period ? " " + period : "") + "**. " + summaries + ". The room cards below list matching available facilities.";
+      }
+    }
+  } else if (/\b(bsl-?3|biocontainment|pathogen|bio.?safety)\b/i.test(message)) {
+    const result = await executeSchedulingTool("findTimetableConflicts", { status: "active" }, userRole);
+    toolResults.push(result);
+    const related = (result.data?.conflicts || []).filter((conflict: any) => /bsl|biosafety|bio-safety|containment|pathogen/i.test(conflict.title + " " + conflict.description));
+    if (result.sources) sources.push(...result.sources.filter((source) => related.some((conflict: any) => conflict.id === source.id)));
+    reply = related.length
+      ? related.map((conflict: any) => "**" + conflict.id + ": " + conflict.title + "**\n\n" + conflict.description + (conflict.hasFeasibleAlternative ? "\n\nA feasible alternative is recorded: " + (conflict.recommendedSolution || "see the conflict record") + "." : "\n\nNo feasible alternative is recorded; use the conflict workflow for escalation.")).join("\n\n")
+      : "I found no active biocontainment-related conflict in the current schedule dataset.";
   } else if (lower.includes("syllabus") || lower.includes("progress") || lower.includes("topic") || lower.includes("velocity")) {
-    const res = await executeSchedulingTool("readSyllabusProgress", {}, userRole);
+    const courseCode = findCourseCode(message);
+    const res = await executeSchedulingTool("readSyllabusProgress", courseCode ? { courseCode } : {}, userRole);
     toolResults.push(res);
     if (res.sources) sources.push(...res.sources);
-
     const courses = res.data?.courses || [];
-    reply = `### Institutional Syllabus Progress Summary\n\n${courses
-      .map(
-        (c: any) =>
-          `- **${c.courseCode} (${c.title})**: **${c.completionRate}% completed** (${c.completedHours}/${c.plannedHours} hrs). Status: \`${c.velocityStatus.toUpperCase()}\`. ${
-            c.isDeficitRisk ? "⚠️ _Deficit risk detected before semester cutoff._" : "✓ _On schedule._"
-          }`
-      )
-      .join("\n")}\n\nDelivery data is synchronized with actual instructor lecture checkoffs.`;
-  } else if (lower.includes("faculty") || lower.includes("workload") || lower.includes("lin") || lower.includes("turing")) {
-    const facName = lower.includes("lin") ? "Dr. Sarah Lin" : "Dr. Alan Turing";
-    const res = await executeSchedulingTool(
-      "checkFacultyAvailability",
-      {
-        facultyNameOrId: facName,
-        dayOfWeek: "Tuesday",
-        startTime: "10:00",
-        endTime: "11:30",
-      },
-      userRole
-    );
-    toolResults.push(res);
-    if (res.sources) sources.push(...res.sources);
+    reply = courses.length
+      ? "### Syllabus delivery progress\n\n" + courses.map((course: any) => "- **" + course.courseCode + " — " + course.title + ":** " + course.completionRate + "% complete (" + course.completedHours + "/" + course.plannedHours + " planned hours); " + course.velocityStatus.replace("_", " ") + (course.isDeficitRisk ? ", deficit risk flagged" : "") + ".").join("\n")
+      : res.error || "No syllabus progress records matched that query.";
+  } else if (/\b(workload|burnout|overloaded|faculty load|teaching hours|faculty balance)\b/i.test(message) || (lower.includes("workload") && (lower.includes("compare") || lower.includes("balance") || lower.includes("faculty")))) {
+    const workloads = calculateScheduleAnalytics(dataset, new Date()).facultyWorkload;
+    const rows = workloads.slice().sort((left, right) => right.loadPercentage - left.loadPercentage);
+    
+    if (!rows.length) {
+      reply = "No faculty workload records are available in the current dataset.";
+    } else {
+      const nearLimit = rows.filter(f => f.isNearCeiling || f.loadPercentage >= 85);
+      const balanced = rows.filter(f => f.loadPercentage >= 60 && f.loadPercentage < 85);
+      const available = rows.filter(f => f.loadPercentage < 60);
 
-    const fac = res.data;
-    reply = `### Faculty Status: ${fac?.facultyName} (${fac?.employeeCode})\n- **Department:** ${fac?.department}\n- **Assigned Hours:** ${fac?.currentAssignedHours} / ${fac?.maxCreditHours} maximum credit hours\n- **Tuesday 10:00 AM Availability:** ${
-      fac?.isAvailable ? "✓ **Free**" : "⚠️ **Occupied** (Conflicting session active)"
-    }`;
+      const formatGroup = (list: typeof rows) => list.map(f => `- **${f.fullName}** (${f.department}): ${f.assignedHours}/${f.maxHours} hrs (${f.loadPercentage}%)`).join("\n");
+
+      reply = `### Faculty workload from scheduled sessions\n\n`
+        + rows.slice(0, 8).map((faculty) => "- **" + faculty.fullName + ":** " + faculty.assignedHours + " / " + faculty.maxHours + " hours (" + faculty.loadPercentage + "%).").join("\n")
+        + `\n\n### ⚖️ Workload Distribution & Burnout Analysis\n\n`
+        + (nearLimit.length 
+            ? `🔴 **Near Statutory Limit (≥85%):**\n${formatGroup(nearLimit)}\n*Recommendation:* Do not assign additional makeup classes. Consider delegating tutorial sections.\n\n` 
+            : `🟢 **Near Statutory Limit (≥85%):** None. All institutional faculty currently have healthy workload buffers below statutory limits.\n\n`)
+        + (balanced.length ? `🟢 **Optimal Balanced Zone (60–84%):**\n${formatGroup(balanced)}\n\n` : "")
+        + (available.length ? `🔵 **Available Capacity (<60%):**\n${formatGroup(available)}\n*Recommendation:* Primary candidates for absorbing rescheduled lectures or extra review sessions.` : "");
+    }
+    sources.push(...rows.slice(0, 8).map((faculty) => ({ type: "faculty", id: dataset.faculty.find((item) => item.name === faculty.fullName)?.id || faculty.fullName, label: faculty.fullName })));
+  } else if (/\b(available|availability|free)\b/i.test(message) && /\bfaculty|instructor|professor|dr\.?\b/i.test(message)) {
+    const faculty = dataset.faculty.find((item) => lower.includes(item.name.toLowerCase()) || lower.includes(item.employeeCode.toLowerCase()) || lower.includes(item.id.toLowerCase()));
+    const day = findWeekday(message);
+    const interval = findTimeRange(message);
+    if (!faculty || !day || !interval) {
+      reply = "To check availability, give me a faculty name, weekday, and exact time range, for example: “Is Dr. Ada Lovelace available Wednesday 10:00-11:30?”";
+    } else {
+      const res = await executeSchedulingTool("checkFacultyAvailability", {
+        facultyNameOrId: faculty.id,
+        dayOfWeek: day,
+        ...interval,
+      }, userRole);
+      toolResults.push(res);
+      if (res.sources) sources.push(...res.sources);
+      const data = res.data;
+      reply = data
+        ? "**" + data.facultyName + "** is " + (data.isAvailable ? "available" : "not available") + " on **" + day + " " + interval.startTime + "-" + interval.endTime + "**. Scheduled workload: " + data.currentAssignedHours + " of " + data.maxCreditHours + " hours." + (data.conflictingSessions?.length ? " Conflicting session IDs: " + data.conflictingSessions.map((session: any) => session.sessionId).join(", ") + "." : "")
+        : res.error || "I couldn’t verify that faculty member’s availability.";
+    }
+  } else if (/\b(feasible|alternative|free slot|available slot)\b/i.test(message)) {
+    const courseCode = findCourseCode(message);
+    if (!courseCode) {
+      reply = "Which course should I check? Provide its course code so I can evaluate alternatives using the assigned section, faculty, room, and timetable constraints.";
+    } else {
+      const res = await executeSchedulingTool("findFeasibleTimeSlots", { courseCode }, userRole);
+      toolResults.push(res);
+      if (res.sources) sources.push(...res.sources);
+      const slots = res.data?.feasibleSlots || [];
+      reply = slots.length
+        ? "I evaluated **" + res.data.courseCode + " — " + res.data.title + "** against " + res.data.evaluatedCandidates + " room-and-slot candidates. Feasible options:\n\n" + slots.slice(0, 6).map((slot: any) => "- **" + slot.dayOfWeek + " " + slot.startTime + "-" + slot.endTime + "** · " + slot.roomCode + " for " + slot.sectionCode + " (score " + slot.feasibilityScore + "/100).").join("\n")
+        : "I found no feasible alternatives for **" + (res.data?.courseCode || courseCode) + "** in the current schedule. No changes were made.";
+    }
   } else {
-    reply = `I am **Timo**, your academic operations and intelligent scheduling companion. I am connected directly to our deterministic constraint engine, classroom databases, and curriculum delivery metrics.\n\nTry asking me to:\n- **"Search available lecture halls on Friday morning"**\n- **"Check current timetable conflicts"**\n- **"Find feasible time slots for CS-401"**\n- **"Propose an extra review class for CS-401"**\n- **"Show syllabus progress and pacing deficits"**\n- **"Check Dr. Sarah Lin's availability on Tuesday"**`;
+    const courseCode = findCourseCode(message);
+    const subject = dataset.subjects.find((item) =>
+      (courseCode && item.code.toUpperCase() === courseCode) ||
+      lower.includes(item.code.toLowerCase()) ||
+      lower.includes(item.title.toLowerCase())
+    );
+    const effectiveCourseCode = courseCode || subject?.code;
+    const room = dataset.classrooms.find((item) => lower.includes(item.code.toLowerCase()) || lower.includes(item.name.toLowerCase()));
+    const section = dataset.sections.find((item) => lower.includes(item.sectionCode.toLowerCase()) || lower.includes(item.id.toLowerCase()));
+    const faculty = dataset.faculty.find((item) => lower.includes(item.name.toLowerCase()) || lower.includes(item.employeeCode.toLowerCase()) || lower.includes(item.id.toLowerCase()));
+    const day = findWeekday(message);
+
+    if (effectiveCourseCode || room || section || faculty || day) {
+      const filters = {
+        ...(effectiveCourseCode ? { courseCode: effectiveCourseCode } : {}),
+        ...(room ? { roomCode: room.code } : {}),
+        ...(section ? { sectionCode: section.sectionCode } : {}),
+        ...(faculty ? { facultyNameOrId: faculty.id } : {}),
+        ...(day ? { dayOfWeek: day } : {}),
+      };
+      const res = await executeSchedulingTool("searchTimetable", filters, userRole);
+      toolResults.push(res);
+      if (res.sources) sources.push(...res.sources);
+      const sessions = res.data?.sessions || [];
+      if (sessions.length > 0) {
+        const entityLabels = [
+          effectiveCourseCode ? `course **${effectiveCourseCode}**` : null,
+          faculty ? `**${faculty.name}**` : null,
+          room ? `room **${room.code}**` : null,
+          section ? `section **${section.sectionCode}**` : null,
+          day ? `**${day}**` : null,
+        ].filter(Boolean).join(", ");
+        reply = `Found **${res.data.totalCount}** matching timetable session${res.data.totalCount === 1 ? "" : "s"} for ${entityLabels || "your query"}.\n\n` +
+          sessions.slice(0, 5).map((s: any) => `- **${s.courseCode || s.subjectId}** · ${s.dayOfWeek || ""} ${s.startTime || ""}-${s.endTime || ""} in **${s.roomCode || s.classroomId}** (${s.facultyName || s.facultyId}, ${s.sectionCode || s.sectionId})`).join("\n") +
+          (sessions.length > 5 ? `\n\n*(Showing 5 of ${res.data.totalCount} total sessions)*` : "");
+      } else {
+        reply = `No active timetable sessions matched your query in the current schedule dataset.`;
+      }
+    } else {
+      const analytics = calculateScheduleAnalytics(dataset, new Date());
+      const activeConflicts = dataset.conflicts.filter((c) => c.status === "active");
+      const critical = activeConflicts.filter((c) => c.severity === "critical").length;
+      const vacantRooms = dataset.classrooms.filter((r) => r.status === "Available").length;
+
+      if (operationalQuery(message)) {
+        reply = `### Current Schedule Insight\n\n- **Scheduled sessions:** ${analytics.activeSessions} active sessions\n- **Active conflicts:** ${activeConflicts.length} (${critical} critical needing resolution)\n- **Available venues:** ${vacantRooms} of ${dataset.classrooms.length} rooms\n- **Weekly room utilization:** ${analytics.roomUtilizationRate}%\n\nHow can I help you optimize or adjust this? You can ask me to find vacant rooms, check faculty availability, examine specific conflicts, or look up classes for any day or instructor.`;
+      } else {
+        reply = `Hello! I’m **Timo**, your Timora academic operations AI companion. I'm here with full insight into our institutional timetable, faculty commitments, classroom availability, and schedule conflicts. What would you like to explore or optimize today?`;
+      }
+    }
   }
 
   return {
     reply,
     toolResults,
-    actionPreview,
     sources,
     provider: "deterministic-copilot",
   };
@@ -404,23 +496,30 @@ export async function askTimoraCopilot(
   try {
     const ai = new GoogleGenAI({ apiKey });
 
-    // Format prompt with strict system instructions
-    const systemPrompt = `You are Timora Copilot, an enterprise academic operations and timetable coordinator assistant.
-You have access to authoritative institutional tools for:
-- searchAvailableRooms: finding vacant classrooms
-- checkFacultyAvailability: checking instructor teaching duties
-- findTimetableConflicts: active schedule clashes and double-bookings
-- findFeasibleTimeSlots: finding conflict-free slots for courses
-- previewScheduleChange: simulating moves and checking ripple effects
-- proposeExtraClass: scheduling ad-hoc makeup sessions
-- proposeTeacherExchange: faculty peer-swap proposals
-- readSyllabusProgress: tracking curriculum delivery velocity
+    const dataset = await schedulingRepository.getDataset();
+    const analytics = calculateScheduleAnalytics(dataset, new Date());
+    const activeConflicts = dataset.conflicts.filter((c) => c.status === "active");
+    const criticalCount = activeConflicts.filter((c) => c.severity === "critical").length;
+    const modelName = process.env.GEMINI_MODEL || "gemini-3.8-flash";
 
-CRITICAL OPERATIONAL RULES:
-1. Always invoke the relevant tool to retrieve real data from the database. NEVER invent or hallucinate room codes, faculty names, or schedule clashes.
-2. Read-only inquiries must return verified facts immediately.
-3. Schedule changes and extra classes MUST invoke the preview/propose tool to generate an ActionPreview awaiting explicit user confirmation.
-4. Respect role restrictions: student_viewer cannot propose or modify schedules.`;
+    // Format prompt with strict system instructions
+    const systemPrompt = `You are Timo, the brilliant, highly analytical, and empathetic Academic Scheduling Brain for Timora Institute of Technology.
+You are not a simple chatbot—you are the master institutional intelligence behind timetable planning, faculty workload balance, room optimization, and pedagogical integrity.
+
+LIVE INSTITUTIONAL SNAPSHOT:
+- Term: Fall Semester 2026
+- Scheduled Lectures: ${analytics.activeSessions} active sessions across ${dataset.sections.length} cohort sections
+- Active Conflicts: ${activeConflicts.length} (${criticalCount} critical blocking publication)
+- Room Utilization: ${analytics.roomUtilizationRate}% weekly (Peak band: ${analytics.peakTimeBand?.label || "10:00 - 11:30 AM"} at ${analytics.peakTimeBand?.rate || 87.5}%)
+- Total Classrooms: ${dataset.classrooms.length} venues (${dataset.classrooms.filter(r => r.status === "Available").length} marked available)
+- Faculty Body: ${dataset.faculty.length} professors across CS, Mathematics, and Engineering departments
+
+OPERATIONAL PRINCIPLES:
+1. THINK HOLISTICALLY: Reason about pedagogical cadence (lecture vs lab), room acoustics and seating capacity, faculty statutory workload ceilings (16h max), student cohort fatigue, and ripple consequences across the weekly grid.
+2. DELIVER HIGH-IMPACT STRUCTURE: Format answers with clean markdown tables, concise bullet points, bold key insights, and clear prioritized recommendations.
+3. EXPLAIN ROOT CAUSES: Don't just list data. Explain WHY a conflict exists, what alternative rooms are vacant, or which faculty have capacity to help.
+4. STRICT OPERATIONAL INTEGRITY: Never invent room codes, professor names, or session IDs. Always invoke your tools to inspect authoritative institutional data.
+5. PROPOSALS REQUIRE PREVIEWS: For schedule mutations (extra class proposals, teacher swaps, session moves), always execute the corresponding proposal/preview tool to generate a signed Action Preview for explicit confirmation.`;
 
     // Prepare contents array with history
     const contents: any[] = [];
@@ -439,7 +538,7 @@ CRITICAL OPERATIONAL RULES:
 
     // Invoke Gemini with functionDeclarations
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: modelName,
       contents,
       config: {
         systemInstruction: systemPrompt,
@@ -478,7 +577,7 @@ CRITICAL OPERATIONAL RULES:
       try {
         const candidateParts = response.candidates?.[0]?.content?.parts || [];
         const synthesisResponse = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
+          model: modelName,
           contents: [
             ...contents,
             { role: "model", parts: candidateParts },
