@@ -1,0 +1,4 @@
+Most university timetables live in scattered spreadsheets until a classroom gets double-booked 10 minutes before lecture. We built Timora—an academic operating system that checks hard constraints in real time, predicts conflict cascades, and gives coordinators an AI copilot grounded in actual timetable records. 
+
+Try it live: https://timora-one.vercel.app
+

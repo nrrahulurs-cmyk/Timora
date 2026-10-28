@@ -48,3 +48,6 @@ next-env.d.ts
 # extracted design bundles
 /stitch_design/
 /stitch_timora_academic_operations_platform_ui_ux/
+
+# video scratch work frames
+brag-output/work/
