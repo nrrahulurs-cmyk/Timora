@@ -29,9 +29,11 @@ const portalRoles: { role: UserRole; label: string; email: string }[] = [
 export function LoginForm({ forcedRole, portalTitle }: LoginFormProps) {
   const router = useRouter();
   const { login, requestPasswordReset } = useAuth();
-  const [email, setEmail] = React.useState("");
-  const [password, setPassword] = React.useState("");
-  const [selectedRole, setSelectedRole] = React.useState<UserRole | "">(forcedRole || (isLocalDemo ? "timetable_coordinator" : ""));
+  const initialRole: UserRole = forcedRole || "timetable_coordinator";
+  const defaultAccount = portalRoles.find((item) => item.role === initialRole) || portalRoles[0];
+  const [email, setEmail] = React.useState(defaultAccount.email);
+  const [password, setPassword] = React.useState("timora2026");
+  const [selectedRole, setSelectedRole] = React.useState<UserRole | "">(initialRole);
   const [showPassword, setShowPassword] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
@@ -41,13 +43,24 @@ export function LoginForm({ forcedRole, portalTitle }: LoginFormProps) {
   const [resetSubmitting, setResetSubmitting] = React.useState(false);
 
   React.useEffect(() => {
-    setSelectedRole(forcedRole || (isLocalDemo ? "timetable_coordinator" : ""));
-    if (!isLocalDemo) return;
-    setEmail(portalRoles.find((item) => item.role === (forcedRole || "timetable_coordinator"))?.email || "");
+    const role: UserRole = forcedRole || selectedRole || "timetable_coordinator";
+    const account = portalRoles.find((item) => item.role === role) || portalRoles[0];
+    setSelectedRole(role);
+    setEmail(account.email);
     setPassword("timora2026");
   }, [forcedRole]);
 
-  const selectedLocalAccount = portalRoles.find((item) => item.email.toLowerCase() === email.trim().toLowerCase());
+  const handleSelectRole = (role: UserRole | "") => {
+    setSelectedRole(role);
+    if (role) {
+      const match = portalRoles.find((item) => item.role === role);
+      if (match) {
+        setEmail(match.email);
+        setPassword("timora2026");
+      }
+    }
+    setErrorMessage(null);
+  };
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -59,7 +72,8 @@ export function LoginForm({ forcedRole, portalTitle }: LoginFormProps) {
         setErrorMessage(result.error || "Could not sign in. Check your details and try again.");
         return;
       }
-      router.push(isLocalDemo && selectedLocalAccount?.role === "student_viewer" ? "/timetable" : "/");
+      const roleToUse = selectedRole || portalRoles.find((item) => item.email.toLowerCase() === email.trim().toLowerCase())?.role;
+      router.push(roleToUse === "student_viewer" ? "/timetable" : "/");
     } catch {
       setErrorMessage("Sign-in is unavailable right now. Try again.");
     } finally {
@@ -107,7 +121,41 @@ export function LoginForm({ forcedRole, portalTitle }: LoginFormProps) {
             <p className="mt-3 text-sm leading-relaxed text-slate-600">Sign in with your institutional account.</p>
 
             <form onSubmit={handleSubmit} className="mt-8 space-y-6">
-              <div className="space-y-2"><label htmlFor="login-account-type" className="block text-sm font-medium text-slate-800">Sign in as</label><select id="login-account-type" value={selectedRole} onChange={(event) => { const role = event.target.value as UserRole | ""; setSelectedRole(role); if (isLocalDemo) { setEmail(portalRoles.find((item) => item.role === role)?.email || ""); setPassword("timora2026"); } setErrorMessage(null); }} className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition-colors focus:border-[#b7442d] focus:ring-2 focus:ring-[#f7d8cf]"><option value="">Use assigned access</option>{portalRoles.map((item) => <option key={item.role} value={item.role}>{item.label}</option>)}</select></div>
+              <div className="space-y-2">
+                <label htmlFor="login-account-type" className="block text-sm font-medium text-slate-800">Sign in as</label>
+                <select
+                  id="login-account-type"
+                  value={selectedRole}
+                  onChange={(event) => handleSelectRole(event.target.value as UserRole | "")}
+                  className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition-colors focus:border-[#b7442d] focus:ring-2 focus:ring-[#f7d8cf]"
+                >
+                  <option value="">Use assigned access</option>
+                  {portalRoles.map((item) => (
+                    <option key={item.role} value={item.role}>
+                      {item.label} ({item.email})
+                    </option>
+                  ))}
+                </select>
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {portalRoles.map((item) => {
+                    const active = selectedRole === item.role;
+                    return (
+                      <button
+                        key={item.role}
+                        type="button"
+                        onClick={() => handleSelectRole(item.role)}
+                        className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
+                          active
+                            ? "bg-[#b7442d] text-white shadow-sm"
+                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               <div className="space-y-2">
                 <label htmlFor="login-email-input" className="block text-sm font-medium text-slate-800">Email address</label>
                 <input id="login-email-input" type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@institution.edu" className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-500 focus:border-[#b7442d] focus:ring-2 focus:ring-[#f7d8cf]" />

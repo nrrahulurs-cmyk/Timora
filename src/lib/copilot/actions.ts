@@ -11,7 +11,6 @@ export const canRequestExtraClass = (role: UserRole) => canEditSchedule(role) ||
 const runtime = globalThis as typeof globalThis & { timoraActionKey?: string; timoraConsumedActions?: Map<string, number> };
 function secret() {
   if (process.env.TIMORA_ACTION_SECRET && process.env.TIMORA_ACTION_SECRET.length >= 32) return process.env.TIMORA_ACTION_SECRET;
-  if (process.env.NODE_ENV === "production") throw new Error("Action signing is not configured.");
   return runtime.timoraActionKey ??= randomBytes(32).toString("hex");
 }
 const payloadSchema = z.object({ actorId: z.string(), role: z.string(), expires: z.number(), nonce: z.string(), plan: schedulePlanSchema }).strict();

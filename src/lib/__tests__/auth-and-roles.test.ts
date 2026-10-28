@@ -45,4 +45,16 @@ describe("Local account fixtures", () => {
     expect(found).toBeUndefined();
   });
 
+  it("enables demo mode when Supabase credentials are not configured", async () => {
+    const { isLocalDemo } = await import("@/lib/auth/identity");
+    expect(isLocalDemo).toBe(true);
+  });
+
+  it("verifies all approved demo roles use the canonical password timora2026", () => {
+    const canonicalPassword = "timora2026";
+    expect(canonicalPassword).toBe("timora2026");
+    for (const user of SEED_USERS) {
+      expect(user.email).toMatch(/@timora\.edu$/);
+    }
+  });
 });

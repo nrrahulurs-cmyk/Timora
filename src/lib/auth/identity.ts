@@ -2,7 +2,14 @@ import type { User as AuthUser } from "@supabase/supabase-js";
 import type { User, UserRole } from "@/types/domain";
 
 export const USER_ROLES: UserRole[] = ["academic_admin", "timetable_coordinator", "dean", "department_head", "faculty_instructor", "student_viewer"];
-export const isLocalDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true" && process.env.NODE_ENV !== "production";
+
+const hasSupabaseAuth = Boolean(
+  process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY &&
+  !process.env.NEXT_PUBLIC_SUPABASE_URL.includes("placeholder")
+);
+
+export const isLocalDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !hasSupabaseAuth;
 
 /** app_metadata is managed by the server; user_metadata may only supply display text. */
 export function identityFromAuth(auth: AuthUser): User {

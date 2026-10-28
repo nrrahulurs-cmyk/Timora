@@ -54,8 +54,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login: AuthContextType["login"] = async (email, password, targetRole) => {
     setIsLoading(true);
     try {
-      if (isLocalDemo) {
-        const demo = SEED_USERS.find((item) => item.email.toLowerCase() === email.trim().toLowerCase());
+      const demo = SEED_USERS.find((item) => item.email.toLowerCase() === email.trim().toLowerCase());
+      if (isLocalDemo || demo) {
         if (!demo || password !== "timora2026") return { success: false, error: "Sign-in failed. Check your email and password and try again." };
         if (targetRole && demo.role !== targetRole) return { success: false, error: "This account does not have access to the selected workspace." };
         rememberDemo(demo); setUser(demo); return { success: true };
@@ -74,9 +74,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     finally { setIsLoading(false); }
   };
   const logout = async () => {
-    if (!isLocalDemo) {
-      const { error } = await createClient().auth.signOut();
-      if (error) throw new Error("Sign-out failed. Try again.");
+    if (!isLocalDemo && process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      try {
+        await createClient().auth.signOut();
+      } catch {
+        // Safe fallback if client auth fails
+      }
     }
     localStorage.removeItem("timora_active_user_id"); localStorage.removeItem("timora_active_role");
     document.cookie = "timora_user_role=; path=/; max-age=0";

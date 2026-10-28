@@ -1598,22 +1598,23 @@ import { SupabaseSchedulingRepository } from "./supabase-scheduling-repository";
  * Uses Supabase when valid credentials are present and NEXT_PUBLIC_DEMO_MODE !== 'true',
  * otherwise gracefully falls back to LocalDemoSchedulingRepository.
  */
-const isDemoExplicit = process.env.NEXT_PUBLIC_DEMO_MODE === "true" && process.env.NODE_ENV !== "production";
 const hasSupabaseCredentials = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY &&
   !process.env.NEXT_PUBLIC_SUPABASE_URL.includes("placeholder")
 );
+const isDemoExplicit = process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !hasSupabaseCredentials;
 
-export const activeDataSource: "supabase" | "demo" | "unconfigured" =
-  isDemoExplicit || process.env.NODE_ENV === "test" ? "demo" : hasSupabaseCredentials ? "supabase" : "unconfigured";
+export const activeDataSource: "supabase" | "demo" =
+  hasSupabaseCredentials && process.env.NEXT_PUBLIC_DEMO_MODE !== "true" ? "supabase" : "demo";
 
 export function createSchedulingRepository(): SchedulingRepository {
-  if (activeDataSource === "unconfigured") return new Proxy({} as SchedulingRepository, { get: (_target, method) => method === "then" ? undefined : async () => { throw new Error("Timora data access is not configured. Set institutional credentials or explicitly enable local demo mode for development."); } });
   if (activeDataSource === "supabase") {
     return new SupabaseSchedulingRepository();
   }
-  if (typeof window !== "undefined" && process.env.NODE_ENV !== "test" && isDemoExplicit) return createDemoHttpRepository();
+  if (typeof window !== "undefined" && process.env.NODE_ENV !== "test" && process.env.NEXT_PUBLIC_DEMO_MODE === "true" && process.env.NODE_ENV !== "production") {
+    return createDemoHttpRepository();
+  }
   return new LocalDemoSchedulingRepository();
 }
 

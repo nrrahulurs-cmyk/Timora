@@ -6,7 +6,7 @@ import { withDemoRepository } from "@/lib/repository/demo-store";
 import { SEED_USERS } from "@/data/fixtures/users";
 import { isLocalDemo, identityFromAuth } from "@/lib/auth/identity";
 import { createClient } from "@/lib/supabase/server";
-import { SupabaseSchedulingRepository, type SchedulingRepository } from "@/lib/repository/scheduling-repository";
+import { LocalDemoSchedulingRepository, SupabaseSchedulingRepository, type SchedulingRepository } from "@/lib/repository/scheduling-repository";
 
 export async function handleCopilot(request: NextRequest) {
   try {
@@ -30,11 +30,17 @@ export async function handleCopilot(request: NextRequest) {
       const role = request.cookies.get("timora_user_role")?.value || "timetable_coordinator";
       const user = SEED_USERS.find((item) => item.role === role);
       if (!user) return NextResponse.json({ error: "The demo identity is invalid." }, { status: 403 });
-      output = await withDemoRepository(async (repository) => {
-        const actor = { id: user.id, name: user.fullName, role: user.role };
+      const actor = { id: user.id, name: user.fullName, role: user.role };
+      if (process.env.NODE_ENV === "production") {
+        const repository = new LocalDemoSchedulingRepository();
         repository.setActor(actor);
-        return perform(repository, actor);
-      }, confirmation);
+        output = await perform(repository, actor);
+      } else {
+        output = await withDemoRepository(async (repository) => {
+          repository.setActor(actor);
+          return perform(repository, actor);
+        }, confirmation);
+      }
     } else {
       const client = await createClient();
       const { data, error } = await client.auth.getUser();
