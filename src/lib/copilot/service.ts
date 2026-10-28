@@ -8,6 +8,7 @@ import { allocation, previewSchedulePlan } from "@/lib/scheduling/plan";
 import { rankValidAlternatives } from "@/lib/scheduling/constraint-engine";
 import { signScheduleAction, canEditSchedule, type CopilotActor } from "./actions";
 import { executeSchedulingTool } from "@/lib/gemini/tools";
+import { answerDailySchedule } from "./daily-schedule";
 
 export const copilotRequestSchema = z.object({
   message: z.string().trim().min(1).max(4000),
@@ -45,6 +46,8 @@ export async function answerCopilot(request: CopilotRequest, actor: CopilotActor
   const data = await repository.getDataset();
   const result: CopilotResponse = { reply: "", toolResults: [], sources: [], provider: "deterministic-copilot", suggestions: ["Show active conflicts", "Compare faculty workloads", "Show schedule summary"] };
   const text = request.message;
+  const daily = answerDailySchedule(request, actor, data);
+  if (daily) return { ...result, ...daily, suggestions: daily.download ? ["What is my next class?", "Show tomorrow's classes"] : ["Download today's timetable", "What is my next class?"] };
   const previous = request.conversationHistory.filter((message) => message.role === "user").at(-1)?.content || "";
   const followsUp = /\b(it|that|those|there|them|instead|same|what about|and on)\b/i.test(text);
   const inherited: Partial<ReturnType<typeof identify>> = followsUp ? identify(previous, data) : {};

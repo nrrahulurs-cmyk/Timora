@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowUp, ArrowUpRight, ArrowRight, CheckCircle2, CircleStop, LoaderCircle, RotateCcw, Sparkles, TriangleAlert } from "lucide-react";
+import { ArrowUp, ArrowUpRight, ArrowRight, CheckCircle2, CircleStop, Download, LoaderCircle, RotateCcw, TriangleAlert } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -16,10 +16,11 @@ export interface AssistantMessage {
   id: string; role: "user" | "assistant"; content: string;
   toolResults?: ToolExecutionResult[]; actionPreview?: ActionPreviewPayload;
   sources?: { type: string; id: string; label: string }[]; suggestions?: string[];
+  download?: { filename: string; mimeType: "text/csv;charset=utf-8"; content: string; label: string };
   isError?: boolean; retryPrompt?: string; applied?: boolean; dismissed?: boolean;
 }
 interface Props { open: boolean; onOpenChange: (open: boolean) => void; initialRole?: UserRole; onNavigateToConflict?: (id?: string) => void; context?: { sessionId?: string; prompt?: string }; }
-const starters = ["Show active conflicts", "Find available rooms Friday 10:00-11:30", "Compare faculty workloads", "Help me import a timetable"];
+const starters = ["What is my next class?", "Download today's timetable", "Summarize my week", "Show active conflicts"];
 const sourcePath = (type: string) => ({ session: "/timetable", conflict: "/conflicts", room: "/rooms", classroom: "/rooms", faculty: "/faculty", subject: "/syllabus", course: "/syllabus", version: "/history", extra_class: "/extra-classes", exchange: "/exchanges" })[type] || "/timetable";
 
 export function TimoWorkspaceModal({ open, onOpenChange, context }: Props) {
@@ -52,7 +53,7 @@ export function TimoWorkspaceModal({ open, onOpenChange, context }: Props) {
       const response = await fetch("/api/ask-timora", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: text, conversationHistory: history, context: { page: pathname, sessionId: context?.sessionId } }), signal: abort.signal });
       const result = await response.json();
       if (!response.ok || typeof result.reply !== "string") throw new Error(result.error || "Copilot could not read the workspace. Try again.");
-      setMessages(current => [...current, { id: crypto.randomUUID(), role: "assistant", content: result.reply, sources: result.sources, toolResults: result.toolResults, suggestions: result.suggestions, actionPreview: result.actionPreview }]);
+      setMessages(current => [...current, { id: crypto.randomUUID(), role: "assistant", content: result.reply, sources: result.sources, toolResults: result.toolResults, suggestions: result.suggestions, actionPreview: result.actionPreview, download: result.download }]);
     } catch (error) {
       const content = abort.signal.aborted ? (abort.signal.reason === "timeout" ? "The request took too long. Try again." : "Request stopped. No change was applied.") : error instanceof Error ? error.message : "The request failed. Try again.";
       setMessages(current => [...current, { id: crypto.randomUUID(), role: "assistant", content, isError: true, retryPrompt: text }]);
@@ -71,6 +72,18 @@ export function TimoWorkspaceModal({ open, onOpenChange, context }: Props) {
       setMessages(current => [...current, { id: crypto.randomUUID(), role: "assistant", content: error instanceof Error ? error.message : "Could not verify the change. Refresh the timetable before retrying.", isError: true }]);
     } finally { busy.current = false; setConfirming(null); }
   }
+  function download(message: AssistantMessage) {
+    if (!message.download) return;
+    const blob = new Blob([message.download.content], { type: message.download.mimeType });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = message.download.filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
   const last = messages.at(-1);
   const timoState: TimoState = confirming ? "tool_calling" : pending ? "thinking" : last?.isError ? "error" : last?.applied ? "completed" : last?.actionPreview?.isValid && !last.dismissed ? "awaiting_confirmation" : input ? "receiving_input" : "ready";
   const suggestions = context?.sessionId && !messages.length ? [`Find alternatives for ${context.sessionId}`, `Find timetable session ${context.sessionId}`] : last?.suggestions || (!messages.length ? starters : []);
@@ -84,6 +97,7 @@ export function TimoWorkspaceModal({ open, onOpenChange, context }: Props) {
       <div className="space-y-7">{messages.map(message => <article key={message.id} className={message.role === "user" ? "ml-8 rounded-xl bg-[#f0f2ed] px-4 py-3" : "min-w-0"}>
         <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold text-slate-500">{message.role === "user" ? "You" : <><TimoAvatar size="xs" state={message.isError ? "error" : message.applied ? "completed" : "ready"} showCompanionDots={false} showStatusGlow={false} />Timo</>}{message.isError && <TriangleAlert size={13} className="text-amber-700" />}</div>
         <TimoMarkdown content={message.content} className="break-words !text-[13px] !leading-6" />
+        {message.download && <Button type="button" size="sm" variant="outline" className="mt-3 gap-2" onClick={() => download(message)}><Download size={14} />{message.download.label}</Button>}
         {message.toolResults?.map((tool, index) => <ToolRecords key={`${tool.toolName}-${index}`} tool={tool} />)}
         {message.actionPreview && <div className="mt-4 overflow-hidden rounded-xl border border-[#dce1da]" data-testid="copilot-action-preview"><div className="border-b bg-[#f7f7f4] px-4 py-3"><h3 className="text-sm font-semibold">{message.actionPreview.summary}</h3><p className="mt-1 text-xs text-secondary">{message.applied ? message.actionPreview.actionType === "EXTRA_CLASS" ? "Submitted and verified" : "Saved and verified" : message.dismissed ? "Proposal dismissed" : message.actionPreview.actionType === "EXTRA_CLASS" ? "Request draft · not yet submitted" : "Proposed change · not yet saved"}</p></div><div className="space-y-3 p-4"><dl className="space-y-3 text-xs">{Object.entries(message.actionPreview.details).map(([key,value]) => <div key={key}><dt className="mb-1 font-medium capitalize text-secondary">{key.replaceAll(/([A-Z])/g," $1")}</dt><dd className="break-words leading-relaxed">{typeof value === "object" ? JSON.stringify(value) : String(value)}</dd></div>)}</dl>{!!message.actionPreview.violations?.length && <ul className="list-disc space-y-2 pl-4 text-xs text-red-800">{message.actionPreview.violations.map((violation, i) => <li key={i}>{violation}</li>)}</ul>}{message.applied ? <p className="flex items-center gap-2 text-xs font-medium text-emerald-800"><CheckCircle2 size={15} />{message.actionPreview.actionType === "EXTRA_CLASS" ? "Request submitted" : "Change applied"}</p> : !message.dismissed && <div className="flex flex-wrap gap-2"><Button size="sm" disabled={!message.actionPreview.isValid || !!confirming || pending} onClick={() => void confirm(message)}>{confirming === message.id ? message.actionPreview.actionType === "EXTRA_CLASS" ? "Submitting and verifying…" : "Applying and verifying…" : message.actionPreview.actionType === "EXTRA_CLASS" ? "Submit request" : "Confirm change"}</Button><Button variant="outline" size="sm" disabled={!!confirming} onClick={() => setMessages(current => current.map(item => item.id === message.id ? { ...item, dismissed: true } : item))}>Dismiss</Button></div>}</div></div>}
         {!!message.sources?.length && <details className="mt-4 text-xs"><summary className="cursor-pointer font-medium text-[#626a64]">{new Set(message.sources.map(source => source.id)).size} source records</summary><div className="mt-2 divide-y rounded-lg border border-[#e4e7e2]">{message.sources.filter((source,index,all) => all.findIndex(item => item.id === source.id) === index).slice(0,20).map(source => <Link key={source.id} href={`${sourcePath(source.type)}?record=${encodeURIComponent(source.id)}`} onClick={() => onOpenChange(false)} className="flex items-start justify-between gap-3 px-3 py-2.5 hover:bg-[#f7f7f4]"><span><span className="block font-medium">{source.id}</span><span className="mt-1 block text-secondary">{source.label}</span></span><ArrowUpRight size={14} className="shrink-0" /></Link>)}</div></details>}

@@ -15,6 +15,7 @@ import { calculateScheduleAnalytics } from "@/lib/analytics/metrics";
 
 export interface AssistantResponse {
   reply: string;
+  download?: { filename: string; mimeType: "text/csv;charset=utf-8"; content: string; label: string };
   toolResults?: ToolExecutionResult[];
   actionPreview?: ActionPreviewPayload;
   sources?: Array<{ type: string; id: string; label: string }>;
