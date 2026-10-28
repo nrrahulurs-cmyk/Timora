@@ -13,7 +13,7 @@ async function dataset(request: APIRequestContext): Promise<SynapseCollegeDatase
 async function signIn(page: Page) {
   await page.goto("/login");
   await expect(page.getByLabel("Email address")).toHaveValue("e.vance@timora.edu");
-  await page.getByLabel("Password", { exact: true }).fill("timora2026");
+  await expect(page.getByLabel("Password", { exact: true })).toHaveValue("timora2026");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByRole("button", { name: "Account and role" })).toBeVisible();
@@ -25,8 +25,10 @@ test("local sign-in requires the password and opens the chosen account", async (
   await expect(page.getByRole("heading", { name: "Welcome to Timora" })).toBeVisible();
   await expect(page.getByLabel("Email address")).toHaveValue("e.vance@timora.edu");
   await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
-  await expect(page.getByLabel("Password", { exact: true })).toBeEmpty();
+  await expect(page.getByLabel("Password", { exact: true })).toHaveValue("timora2026");
   await page.getByLabel("Sign in as").selectOption("faculty_instructor");
+  await expect(page.getByLabel("Email address")).toHaveValue("s.lin@timora.edu");
+  await expect(page.getByLabel("Password", { exact: true })).toHaveValue("timora2026");
   await page.getByLabel("Password", { exact: true }).fill("wrong-password");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.locator('p[role="alert"]')).toContainText("Sign-in failed");

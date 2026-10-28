@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { answerCopilot, copilotRequestSchema } from "./service";
-import { applyScheduleAction, type CopilotActor } from "./actions";
+import { actionKind, applyExtraClassAction, applyScheduleAction, type CopilotActor } from "./actions";
 import { withDemoRepository } from "@/lib/repository/demo-store";
 import { SEED_USERS } from "@/data/fixtures/users";
 import { isLocalDemo, identityFromAuth } from "@/lib/auth/identity";
@@ -19,7 +19,9 @@ export async function handleCopilot(request: NextRequest) {
     const perform = async (repository: SchedulingRepository, actor: CopilotActor) => {
       if (confirmation) {
         const { confirmationToken } = z.object({ confirmationToken: z.string().min(1).max(100_000) }).parse(body);
-        return applyScheduleAction(confirmationToken, actor, repository);
+        return actionKind(confirmationToken) === "EXTRA_CLASS"
+          ? applyExtraClassAction(confirmationToken, actor, repository)
+          : applyScheduleAction(confirmationToken, actor, repository);
       }
       return answerCopilot(copilotRequestSchema.parse(body), actor, repository);
     };

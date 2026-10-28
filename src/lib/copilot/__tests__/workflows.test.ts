@@ -4,7 +4,7 @@ import { SYNAPSE_SEED_DATA } from "@/data/fixtures";
 import { LocalDemoSchedulingRepository } from "@/lib/repository/scheduling-repository";
 import { allocation, previewSchedulePlan, type SchedulePlan } from "@/lib/scheduling/plan";
 import { parseTimetableCsv, rowsFromMatrix, previewTimetableImport, IMPORT_COLUMNS } from "@/lib/scheduling/import";
-import { signScheduleAction, applyScheduleAction, type CopilotActor } from "../actions";
+import { actionKind, signExtraClassAction, applyExtraClassAction, signScheduleAction, applyScheduleAction, type CopilotActor } from "../actions";
 import { answerCopilot } from "../service";
 import { identityFromAuth } from "@/lib/auth/identity";
 import type { User } from "@supabase/supabase-js";
@@ -65,6 +65,22 @@ describe("Actor-bound Copilot confirmations", () => {
     const repo = new LocalDemoSchedulingRepository(data);
     await expect(applyScheduleAction(signScheduleAction(plan,actor),actor,repo)).rejects.toThrow("maintenance");
   });
+  it("binds extra-class confirmation to the actor and rejects tampering or a faculty request for another instructor", async () => {
+    const input = { facultyId: "FAC-VANCE", subjectId: "SUB-CS401", sectionId: "SEC-CSE-S5-A", classroomId: "ROOM-LH-201", timeSlotId: "SLOT-FRI-1", scheduledDate: "2026-11-06", reason: "Make up a missed lecture" };
+    const token = signExtraClassAction(input, actor, 1000);
+    expect(actionKind(token)).toBe("EXTRA_CLASS");
+    const [body, signature] = token.split(".");
+    const payload = JSON.parse(Buffer.from(body, "base64url").toString()); payload.request.classroomId = "ROOM-LH-102";
+    const forged = `${Buffer.from(JSON.stringify(payload)).toString("base64url")}.${signature}`;
+    const repository = new LocalDemoSchedulingRepository(cleanData());
+    await expect(applyExtraClassAction(forged, actor, repository, 2000)).rejects.toThrow("not authentic");
+    await expect(applyExtraClassAction(token, { ...actor, id: "OTHER" }, repository, 2000)).rejects.toThrow("different identity");
+    await expect(applyExtraClassAction(token, actor, repository, 302000)).rejects.toThrow("expired");
+    const faculty = { id: "USER-LIN", name: "Dr. Sarah Lin", role: "faculty_instructor" as const };
+    await expect(applyExtraClassAction(signExtraClassAction(input, faculty), faculty, repository)).rejects.toThrow("only for your own");
+    expect(() => signExtraClassAction(input, { ...actor, role: "student_viewer" })).toThrow("cannot request");
+    expect(await repository.getExtraClassRequests()).toHaveLength(0);
+  });
 });
 
 describe("Grounded local conversation", () => {
@@ -77,6 +93,15 @@ describe("Grounded local conversation", () => {
   it("requires disambiguation for a course with multiple sessions", async () => {
     const result = await answerCopilot({ message: "Move CS-401 to Friday 09:00", conversationHistory: [] },actor,new LocalDemoSchedulingRepository());
     expect(result.reply).toContain("Choose the session"); expect(result.actionPreview).toBeUndefined();
+  });
+  it("rejects a viewer's naturally phrased move before a model can misread it as a lookup", async () => {
+    const fetch = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network must not be used"));
+    try {
+      const result = await answerCopilot({ message: "Put SESS-CS401-MON on Friday 08:30 in LH-201", conversationHistory: [] }, { ...actor, role: "student_viewer" }, new LocalDemoSchedulingRepository());
+      expect(result.reply).toContain("cannot apply timetable changes");
+      expect(result.actionPreview).toBeUndefined();
+      expect(fetch).not.toHaveBeenCalled();
+    } finally { fetch.mockRestore(); }
   });
   it("previews a real move without mutating, then commits the confirmed allocation", async () => {
     const repo = new LocalDemoSchedulingRepository(cleanData());

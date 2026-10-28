@@ -30,7 +30,7 @@ export function LoginForm({ forcedRole, portalTitle }: LoginFormProps) {
   const router = useRouter();
   const { login, requestPasswordReset } = useAuth();
   const [email, setEmail] = React.useState("");
-  const [password, setPassword] = React.useState(isLocalDemo ? "timora2026" : "");
+  const [password, setPassword] = React.useState("");
   const [selectedRole, setSelectedRole] = React.useState<UserRole | "">(forcedRole || (isLocalDemo ? "timetable_coordinator" : ""));
   const [showPassword, setShowPassword] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
@@ -127,7 +127,6 @@ export function LoginForm({ forcedRole, portalTitle }: LoginFormProps) {
               </Button>
             </form>
 
-            {isLocalDemo && <details className="mt-6 border-t border-slate-100 pt-5 text-xs text-slate-600"><summary className="cursor-pointer font-medium hover:text-slate-900">Sign-in help</summary><p className="mt-3 text-slate-500">Local account password: <code>timora2026</code></p></details>}
           </section>
         </main>
       </div>

@@ -1,120 +1,54 @@
-# Timora — Enterprise Academic Scheduling & Timetable Studio
+# Timora
 
-**Timora** is a mission-critical, enterprise academic scheduling system and timetable management platform built for modern universities and higher education institutions. Designed around the clean, restrained light aesthetic of the **CIIRC Admin Panel** and high-density **Orbitask Table View**, Timora combines deterministic constraint validation, automated conflict resolution, live Supabase persistence, and Google Gemini-powered academic operations.
+Timora is an academic scheduling workspace for timetables, room allocation, faculty workloads, conflict resolution, timetable imports, extra classes, and exchanges. The current checkout is usable with local fixture data. **Institutional production launch is not yet approved.** See [Launch readiness](docs/LAUNCH_READINESS_REPORT.md) for verified behavior and blockers.
 
----
+## What works
 
-## 🌟 Key Capabilities
+- Timetable Studio reads and stages schedule changes through a constraint engine. Coordinators can preview feasible moves and confirm them; saved allocations are checked again and audited.
+- Conflict Center, room and faculty views, analytics, history, syllabus, extra-class requests, and exchange requests share the scheduling repository.
+- CSV and XLSX timetable imports support record matching, editable review, validation, confirmation, duplicate detection, and read-after-write checks.
+- Timo can reason over general questions and current Timora records. With `OPENROUTER_API_KEY`, its server-side model calls validated, role-scoped read tools for timetable, room and faculty availability, conflicts, feasible slots, syllabus progress, schedule health, request queues, and version comparisons. It can prepare a signed timetable move or extra-class request preview. Only a separate user confirmation can apply a move or submit a request for department review. Without OpenRouter, development can use a local Ollama model, then a repository-bound deterministic fallback.
+- The local development login autofills fixture credentials. Production builds disable the local credential path.
 
-### 1. Timetable Studio (Matrix & Orbitask Table Views)
-* Responsive weekly academic timetable matrix (Monday through Saturday, 08:30 AM – 05:00 PM).
-* Multi-dimensional filtering by Department, Semester, Section, Faculty, and Room category.
-* High-density **Orbitask Table View** with sortable columns, monospace identifiers, and quick status pills.
-* Session reassignments, room swaps, and instructor replacements with conflict validation.
+## Run locally
 
-### 2. Deterministic Constraint Engine & Ripple Intelligence
-* **Strict Separation of Hard Constraints vs Soft Preferences:**
-  * Room overlap, faculty collision, student section clashes, capacity deficit, equipment mismatch, and BSL-3 laboratory containment protocols.
-* **Ripple Resolution Engine:**
-  * Evaluates alternative time slots, eligible facilities, and substitute instructors.
-  * Generates zero-cascade alternatives ranked by feasibility scores (0–100).
-  * Safely isolates impossible scenarios (e.g. `CONF-05`: single specialized containment facility undergoing statutory maintenance).
-
-### 3. Ask Timora AI Copilot (Google Gemini 2.5 Flash)
-* Server-only AI integration using the official `@google/genai` SDK.
-* Grounded function calling with strictly validated tool schemas (`findConflicts`, `searchEligibleRooms`, `checkFacultyAvailability`, `previewScheduleChange`, `proposeExtraClass`).
-* Deterministic pre-flight verification: `Interpret → Validate → Preview Diff → Confirm → Commit`.
-
-### 4. Live Supabase Database & Role-Based Governance
-* PostgreSQL schema with relational integrity, foreign keys, and indexes.
-* Multi-role authorization: `academic_admin`, `timetable_coordinator`, `faculty_instructor`, and `student_viewer`.
-* Safe optimistic concurrency protection preventing silent schedule corruption.
-
-### 5. Institutional Analytics & Curriculum Pacing
-* Interactive data visualizations built with Recharts:
-  * Facility occupancy index and temporal distribution.
-  * Departmental faculty workload distribution.
-  * Conflict categorizations and resolution velocity.
-  * Curriculum and syllabus pacing progress tracking.
-
-### 6. Immutable Version Publishing & Rollback Audit Trail
-* Draft staging and one-click production publishing.
-* Pre-flight validation gate ensuring zero unresolved blocking conflicts before release.
-* Non-destructive versioning with audited rollback capabilities.
-
----
-
-## 🛠️ Technology Stack
-
-* **Framework:** Next.js 16 (App Router & Turbopack)
-* **Frontend:** React 19, TypeScript, Vanilla CSS Tokens + Tailwind CSS
-* **Database & Auth:** Supabase (PostgreSQL 17)
-* **AI & Machine Intelligence:** Google Gemini API (`@google/genai`)
-* **Visualizations:** Recharts
-* **Testing:** Vitest (141 unit/integration tests) + Playwright (5 E2E journeys)
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-* Node.js 20+
-* npm or pnpm
-
-### Installation
+Node.js 20+ and npm are required.
 
 ```bash
-# Clone the repository
-git clone https://github.com/nrrahulurs-cmyk/Timora.git
-cd Timora
-
-# Install dependencies
 npm install
 ```
 
-### Environment Configuration
+Create a git-ignored `.env.local` for the mode you are running:
 
-Create a `.env.local` file with your credentials:
+```dotenv
+# Local fixture evaluation only
+NEXT_PUBLIC_DEMO_MODE=true
 
-```bash
-# Supabase Connectivity
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+# Optional server-side model access. Chat text and relevant Timora records go to OpenRouter.
+OPENROUTER_API_KEY=your-openrouter-key
+OPENROUTER_MODEL=openai/gpt-oss-120b
 
-# Google Gemini API
-GEMINI_API_KEY=your-gemini-api-key
+# Optional local model fallback in development
+TIMORA_LOCAL_AI_URL=http://127.0.0.1:11434
+TIMORA_LOCAL_AI_MODEL=gemma3:4b
 ```
 
-### Running Locally
+Then run `npm run dev` and open [localhost:3000](http://localhost:3000). The local AI URL must point to a model service on the same machine; the default development URL is Ollama on localhost.
+
+For live mode, configure Supabase Auth and database variables in the server environment instead of enabling demo mode. `TIMORA_COPILOT_LIVE_ENABLED=true` unlocks authenticated Copilot reads only. Live Copilot writes remain disabled until the database and authorization launch gates are completed.
+
+## Verify
 
 ```bash
-npm run dev
-```
-
-Visit [http://localhost:3000](http://localhost:3000) to open Timora.
-
----
-
-## 🧪 Testing & Verification
-
-```bash
-# Run unit & domain integration tests (141 tests)
 npm run test
-
-# Run Playwright End-to-End journeys
-npx playwright test --workers=1
-
-# Typecheck and production bundle build
-npx tsc --noEmit
-npm run build
+npm run lint -- --quiet
+npx tsc --noEmit --incremental false
+npx playwright test --project=chromium
+TIMORA_DISABLE_BUILD_CACHE=true npm run build -- --webpack
 ```
 
----
+Browser journeys run serially because they share a mutable local fixture dataset. Live Supabase integration tests are skipped unless `TIMORA_RUN_LIVE_TESTS=true` is set against an isolated test project.
 
-## 🌐 Deploy to Vercel
+## Before institutional deployment
 
-Timora is production-ready for deployment on [Vercel](https://vercel.com):
-
-1. Import this repository into Vercel.
-2. Configure `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `GEMINI_API_KEY` in Project Settings > Environment Variables.
-3. Deploy!
+The remaining gates include scoped Supabase row policies, transactional and audited live writes, complete exchange consent and application, live role integration tests, backup and recovery checks, and full accessibility review. The supplied temporary OpenRouter key must be replaced by an institution-managed credential and approved provider data handling. The [launch readiness report](docs/LAUNCH_READINESS_REPORT.md) lists the current evidence and limitations.

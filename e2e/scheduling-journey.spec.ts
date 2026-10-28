@@ -4,7 +4,7 @@ test.describe("Timora Scheduling & Conflict Resolution Journey", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/login");
     await expect(page.getByLabel("Email address")).toHaveValue("e.vance@timora.edu");
-    await page.getByLabel("Password", { exact: true }).fill("timora2026");
+    await expect(page.getByLabel("Password", { exact: true })).toHaveValue("timora2026");
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(page).toHaveURL(/\/$/);
   });

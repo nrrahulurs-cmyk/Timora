@@ -1,7 +1,9 @@
 import { z } from "zod";
 import type { SchedulingRepository } from "@/lib/repository/scheduling-repository";
 import type { DayOfWeek, SynapseCollegeDataset, TimetableSession } from "@/types/domain";
-import { askTimoraCopilot, fallbackSemanticClassifier, type AssistantResponse } from "@/lib/gemini/assistant";
+import { fallbackSemanticClassifier, type AssistantResponse } from "@/lib/gemini/assistant";
+import { reasonWithLocalModel } from "./local-brain";
+import { reasonWithOpenRouter } from "./openrouter-brain";
 import { allocation, previewSchedulePlan } from "@/lib/scheduling/plan";
 import { rankValidAlternatives } from "@/lib/scheduling/constraint-engine";
 import { signScheduleAction, canEditSchedule, type CopilotActor } from "./actions";
@@ -58,6 +60,11 @@ export async function answerCopilot(request: CopilotRequest, actor: CopilotActor
   const selected = sessions.find((session) => mentions(text, session.id)) || (request.context?.sessionId ? sessions.find((session) => session.id === request.context?.sessionId) : undefined) || (followsUp ? sessions.find((session) => mentions(previous, session.id)) : undefined);
   const matched = selected ? [selected] : sessions.filter((session) => subject && session.subjectId === subject.id && (!section || session.sectionId === section.id));
 
+  if (!canEditSchedule(actor.role) && /\b(put|place|switch|relocate|change)\b/i.test(text) && /\b(session|class|lecture|timetable|schedule)\b|SESS-/i.test(text)) {
+    result.reply = "Your role can inspect schedules but cannot apply timetable changes. Ask your coordinator to review the proposed move.";
+    return result;
+  }
+
   if (/\b(move|reschedule|reassign|shift)\b/i.test(text) && !/extra|exchange/i.test(text)) {
     if (!canEditSchedule(actor.role)) { result.reply = "Your role can inspect schedules but cannot apply timetable changes. Ask your coordinator to review the proposed move."; return result; }
     if (matched.length !== 1) {
@@ -92,6 +99,11 @@ export async function answerCopilot(request: CopilotRequest, actor: CopilotActor
   } else if (/\b(upload|import|extract|document|pdf|xlsx|csv)\b/i.test(text)) {
     result.reply = "Open Timetable Studio → Import timetable to upload CSV or XLSX, review matched records, correct errors and validate the candidate schedule before applying it. PDF and image extraction are not available yet. File contents are treated as data, never as instructions.";
   } else if (/\b(compare|difference|diff)\b/i.test(text) && /\b(version|draft|published)\b/i.test(text)) {
+    const explanation = await reasonWithOpenRouter(text, request.conversationHistory, actor, repository);
+    if (explanation?.toolResults?.some((tool) => tool.toolName === "compareScheduleVersions" && tool.success)) {
+      Object.assign(result, explanation);
+      return result;
+    }
     const published = data.scheduleVersions.find((version) => version.status === "published");
     if (!published?.sessionSnapshot) result.reply = "The published version has no saved session snapshot, so a reliable comparison is unavailable. Newly published local versions retain session snapshots for comparison and recovery.";
     else {
@@ -108,7 +120,12 @@ export async function answerCopilot(request: CopilotRequest, actor: CopilotActor
       if (/available|free|vacant/i.test(previous) && /room|hall|lab/i.test(previous)) contextual = `Find available rooms ${day || ""} ${times.join("-")}`;
       else if (day && !/class|session|schedule|timetable|workload|available|free|conflict/i.test(text)) contextual = `Find timetable sessions ${references} ${day}`;
     }
-    const response = await askTimoraCopilot(contextual, request.conversationHistory, actor.role);
+    const modelStarted = Date.now();
+    const remote = await reasonWithOpenRouter(contextual, request.conversationHistory, actor, repository);
+    // Leave time for the browser's 30-second request budget after a slow provider failure.
+    const response = remote
+      || (Date.now() - modelStarted < 8_000 ? await reasonWithLocalModel(contextual, request.conversationHistory, actor.role, repository) : null)
+      || await fallbackSemanticClassifier(contextual, actor.role, repository);
     Object.assign(result, response);
     const sourceSession = response.sources?.find((source) => source.type === "session");
     if (sourceSession) result.suggestions = [`Find alternatives for ${sourceSession.id}`, "Show active conflicts"];

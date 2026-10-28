@@ -2,13 +2,14 @@ import { describe, it, expect } from "vitest";
 import { askTimoraCopilot } from "@/lib/gemini/assistant";
 
 describe("Timo — The Brain of Timora", () => {
-  it("delivers an Executive Strategic Diagnosis when asked how to optimize or analyze bottlenecks", async () => {
+  it("reports current metrics without fabricating capacity or legal limits", async () => {
     const res = await askTimoraCopilot("How can I optimize the schedule and what are the biggest bottlenecks?", [], "academic_admin");
 
-    expect(res.reply).toContain("Brain of Timora: Strategic Operations Diagnosis");
-    expect(res.reply).toContain("Peak Congestion Window");
-    expect(res.reply).toContain("Critical Conflict Clearance");
-    expect(res.reply).toContain("Faculty Workload Balance");
+    expect(res.reply).toContain("Current schedule snapshot");
+    expect(res.reply).toContain("Active conflicts");
+    expect(res.reply).toContain("Peak room usage");
+    expect(res.reply).not.toContain("statutory");
+    expect(res.reply).not.toContain("Shifting 2–3");
     expect(res.provider).toBe("deterministic-copilot");
   });
 
@@ -22,12 +23,13 @@ describe("Timo — The Brain of Timora", () => {
     expect(res.sources?.length).toBeGreaterThan(0);
   });
 
-  it("performs comprehensive faculty burnout and workload ceiling analysis", async () => {
+  it("compares faculty load against configured limits without diagnosing burnout", async () => {
     const res = await askTimoraCopilot("Who is overloaded or near burnout among the faculty?", [], "academic_admin");
 
-    expect(res.reply).toContain("Workload Distribution & Burnout Analysis");
-    expect(res.reply).toContain("Near Statutory Limit");
-    expect(res.reply).toContain("Available Capacity");
+    expect(res.reply).toContain("Workload distribution against configured limits");
+    expect(res.reply).toContain("Near configured maximum");
+    expect(res.reply).toContain("Below 60% of configured load");
+    expect(res.reply).not.toContain("statutory");
     expect(res.sources?.some((s) => s.type === "faculty")).toBe(true);
   });
 
